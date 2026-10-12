@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="ui/icon.png" width="96" alt="Helm">
+
 # Helm
 
 **A Windows 11 taskbar replacement, in Rust.**
