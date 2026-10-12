@@ -198,6 +198,9 @@ struct Config {
     // Icon override: exe (or "*") + case-insensitive title substring -> .ico path (relative to the icons folder).
     #[serde(default)]
     icon_rules: Vec<IconRule>,
+    // Built-in web services; unset means the defaults (see webservices::default_services).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    services: Option<Vec<webservices::ServiceCfg>>,
 }
 
 struct Store {

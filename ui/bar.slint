@@ -186,6 +186,127 @@ export struct TrayItem {
     tip: string,
 }
 
+// A web-service group on the bar (kind 0 personal, 1 work) or one service row in its flyout.
+export struct SvcItem {
+    name: string,
+    kind: int,
+    count: int,
+    meeting: bool,
+    flashing: bool,
+}
+
+export component GroupIcon inherits Rectangle {
+    in property <int> kind;
+    in property <color> fg: Theme.text;
+    width: 18px;
+    height: 16px;
+    if root.kind == 0: Rectangle {
+        x: 5.5px;
+        y: 0.5px;
+        width: 7px;
+        height: 7px;
+        border-radius: 3.5px;
+        border-width: 1.4px;
+        border-color: root.fg;
+    }
+    if root.kind == 0: Path {
+        width: root.width;
+        height: root.height;
+        viewbox-width: 18;
+        viewbox-height: 16;
+        commands: "M 3 15.3 Q 3 9.5 9 9.5 Q 15 9.5 15 15.3";
+        stroke: root.fg;
+        stroke-width: 1.4px;
+        stroke-line-cap: round;
+    }
+    if root.kind != 0: Path {
+        width: root.width;
+        height: root.height;
+        viewbox-width: 18;
+        viewbox-height: 16;
+        commands: "M 2 5 L 16 5 L 16 14.5 L 2 14.5 Z M 6.5 5 L 6.5 2.5 L 11.5 2.5 L 11.5 5 M 2 9.5 L 16 9.5";
+        stroke: root.fg;
+        stroke-width: 1.4px;
+        stroke-line-join: round;
+    }
+}
+
+// Count pill: shows 1-9, then 9+.
+export component CountBadge inherits Rectangle {
+    in property <int> count;
+    visible: root.count > 0;
+    height: 13px;
+    width: root.count > 9 ? 19px : 13px;
+    border-radius: 6.5px;
+    background: Theme.accent;
+    Text {
+        text: root.count > 9 ? "9+" : "\{root.count}";
+        color: #ffffff;
+        font-size: 9px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+// Small video-camera glyph for "a Teams meeting is running".
+export component MeetingGlyph inherits Rectangle {
+    width: 14px;
+    height: 10px;
+    Rectangle {
+        width: 9px;
+        height: 10px;
+        border-radius: 2px;
+        background: #e5484d;
+    }
+    Path {
+        x: 9px;
+        width: 5px;
+        height: 10px;
+        viewbox-width: 5;
+        viewbox-height: 10;
+        commands: "M 0 3.5 L 5 0.5 L 5 9.5 L 0 6.5 Z";
+        fill: #e5484d;
+    }
+}
+
+component SvcButton inherits Rectangle {
+    in property <SvcItem> item;
+    callback clicked();
+    width: 34px;
+
+    Rectangle {
+        y: 4px;
+        height: parent.height - 8px;
+        border-radius: Theme.button-radius;
+        background: ta.pressed && ta.has-hover ? Theme.pressed : ta.has-hover ? Theme.hover : transparent;
+        animate background { duration: Theme.anim; easing: ease-out; }
+        Rectangle {
+            visible: root.item.flashing;
+            border-radius: parent.border-radius;
+            background: Theme.accent;
+            opacity: 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg));
+        }
+        GroupIcon {
+            kind: root.item.kind;
+            x: (parent.width - self.width) / 2 - 2px;
+            y: (parent.height - self.height) / 2;
+        }
+        CountBadge {
+            count: root.item.count;
+            x: parent.width - self.width - 1px;
+            y: 1px;
+        }
+        if root.item.meeting: MeetingGlyph {
+            x: parent.width - self.width - 1px;
+            y: parent.height - self.height - 2px;
+        }
+    }
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
 component TrayButton inherits Rectangle {
     in property <TrayItem> item;
     // Draws a chevron instead of the item's icon.
@@ -238,6 +359,9 @@ export component BarWindow inherits Window {
 
     in property <[AppItem]> apps;
     in property <[TrayItem]> tray;
+    // Web-service group buttons (Personal, Work), left of the tray.
+    in property <[SvcItem]> svc;
+    callback svc-clicked(int);
     // True when some tray icons live in the overflow flyout (a chevron button is shown).
     in property <bool> has-overflow: false;
     in property <string> clock;
@@ -302,6 +426,14 @@ export component BarWindow inherits Window {
         animate x { duration: Theme.anim; easing: ease-out; }
         clicked(b) => { root.tray-clicked(i, b); }
         hovered(h) => { root.tray-hovered(i, h); }
+    }
+
+    for s[i] in root.svc: SvcButton {
+        item: s;
+        height: root.height;
+        x: root.mx(root.width - root.clock-reserve - (root.tray.length + (root.has-overflow ? 1 : 0)) * 28px - (root.svc.length - i) * 34px, 34px);
+        animate x { duration: Theme.anim; easing: ease-out; }
+        clicked => { root.svc-clicked(i); }
     }
 
     if root.has-overflow: TrayButton {

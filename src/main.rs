@@ -15,6 +15,7 @@ mod menu;
 mod popup;
 mod prelude;
 mod quick;
+mod services;
 mod shell;
 mod state;
 mod settings;
@@ -56,6 +57,7 @@ fn tick() {
         push_tray();
     }
     forget_flashing_dead();
+    crate::popup::refresh_services_flyout();
     crate::settings::sync_open_window();
     refresh_all();
 }
@@ -81,6 +83,7 @@ fn main() {
         install_zorder_hooks();
     }
     init_tray();
+    services::start();
     start::install_win_key_hook();
     start::prewarm();
     // Native handles only exist once the event loop runs, so finish setup quickly there.

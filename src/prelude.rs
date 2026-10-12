@@ -33,7 +33,7 @@ pub(crate) use crate::state::*;
 pub(crate) use crate::tasks::*;
 pub(crate) use crate::tray::*;
 pub(crate) use crate::ui::{
-    AppItem, BarWindow, MenuEntry, MenuPopup, MixItem, QItem, QuickPopup, StartItem, StartPopup, TipPopup, TrayFlyout,
-    TrayItem,
+    AppItem, BarWindow, MenuEntry, MenuPopup, MixItem, QItem, QuickPopup, StartItem, StartPopup, SvcItem, TipPopup,
+    TrayFlyout, TrayItem,
 };
 pub(crate) use crate::util::*;

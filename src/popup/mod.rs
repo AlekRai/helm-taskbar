@@ -42,6 +42,8 @@ struct Track {
     closed_at: Cell<Option<(Instant, u8, isize)>>,
     open_mon: Cell<isize>,
     fly_mon: Cell<isize>,
+    // What the flyout lists: TRAY_KIND for overflow tray icons, else a service group index.
+    fly_kind: Cell<i32>,
     quick_mon: Cell<isize>,
     keep_fly: Cell<bool>,
 }
@@ -57,6 +59,7 @@ thread_local! {
 }
 
 const MENU_WIDTH: f32 = 220.0;
+const TRAY_KIND: i32 = -1;
 const CAL_HEIGHT_FULL: f32 = 420.0;
 
 // Calendar plus its 1px divider; zero when the calendar is turned off.
@@ -102,6 +105,7 @@ pub(crate) fn init_popups() {
     menu.on_activated(|id| menu_activated(id as usize));
     fly.on_clicked(|i, b| crate::tray::on_flyout_clicked(TRACK.with(|t| t.fly_mon.get()), i as usize, b));
     fly.on_hovered(fly_hovered);
+    fly.on_svc_clicked(|i| svc_row_clicked(i as usize));
     crate::calendar::wire(&quick);
     crate::start::wire(&start);
     crate::quick::wire(&quick);

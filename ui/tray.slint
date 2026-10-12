@@ -1,5 +1,5 @@
 import { Theme } from "theme.slint";
-import { TrayItem } from "bar.slint";
+import { TrayItem, SvcItem, GroupIcon, CountBadge, MeetingGlyph } from "bar.slint";
 
 export component TrayFlyout inherits Window {
     no-frame: true;
@@ -11,8 +11,54 @@ export component TrayFlyout inherits Window {
 
     in property <[TrayItem]> items;
     in property <int> cols: 4;
+    // When set, the flyout lists web services (one row each) instead of tray icons.
+    in property <[SvcItem]> svcs;
     callback clicked(int, int);
     callback hovered(int, bool);
+    callback svc-clicked(int);
+
+    for s[i] in root.svcs: Rectangle {
+        x: 6px;
+        y: 6px + i * 34px;
+        width: parent.width - 12px;
+        height: 32px;
+        border-radius: Theme.button-radius;
+        background: sta.pressed && sta.has-hover ? Theme.popup-pressed : sta.has-hover ? Theme.popup-hover : transparent;
+        animate background { duration: Theme.anim; easing: ease-out; }
+        Rectangle {
+            visible: s.flashing;
+            border-radius: parent.border-radius;
+            background: Theme.accent;
+            opacity: 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg));
+        }
+        GroupIcon {
+            kind: s.kind;
+            x: 10px;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            x: 38px;
+            width: parent.width - 38px - 64px;
+            height: parent.height;
+            text: s.name;
+            color: Theme.text;
+            font-size: 13px;
+            overflow: elide;
+            vertical-alignment: center;
+        }
+        if s.meeting: MeetingGlyph {
+            x: parent.width - 58px;
+            y: (parent.height - self.height) / 2;
+        }
+        CountBadge {
+            count: s.count;
+            x: parent.width - self.width - 12px;
+            y: (parent.height - self.height) / 2;
+        }
+        sta := TouchArea {
+            clicked => { root.svc-clicked(i); }
+        }
+    }
 
     for item[i] in root.items: Rectangle {
         x: 6px + mod(i, root.cols) * 38px;

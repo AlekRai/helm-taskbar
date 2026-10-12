@@ -81,6 +81,10 @@ pub(crate) fn save_start_pins(pins: Vec<String>) {
     mutate(|c| c.start_pins = pins);
 }
 
+pub(crate) fn load_services() -> Vec<webservices::ServiceCfg> {
+    with_store(|st| st.cfg.services.clone().unwrap_or_else(webservices::default_services))
+}
+
 pub(crate) fn load_theme() -> std::rc::Rc<ThemeCfg> {
     with_store(|st| st.theme.clone())
 }

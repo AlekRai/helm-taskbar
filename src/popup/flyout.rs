@@ -15,7 +15,8 @@ pub(crate) fn toggle_tray_flyout(monitor: isize) {
     }
     let recent = TRACK
         .with(|t| t.closed_at.take())
-        .is_some_and(|(t, k, m)| k == 3 && m == monitor && t.elapsed() < Duration::from_millis(400));
+        .is_some_and(|(t, k, m)| k == 3 && m == monitor && t.elapsed() < Duration::from_millis(400))
+        && TRACK.with(|t| t.fly_kind.get()) == TRAY_KIND;
     let items = crate::tray::overflow_items();
     if recent || items.is_empty() {
         return;
@@ -23,6 +24,7 @@ pub(crate) fn toggle_tray_flyout(monitor: isize) {
     let Some((rect, scale)) = with_bar(monitor, |b| (b.rect, b.scale)) else { return };
     TRACK.with(|t| t.open_mon.set(monitor));
     TRACK.with(|t| t.fly_mon.set(monitor));
+    TRACK.with(|t| t.fly_kind.set(TRAY_KIND));
     close_popups();
     let Some((ui, hwnd)) = POPUPS.with(|p| p.borrow().as_ref().map(|p| (p.fly.clone_strong(), p.fly_hwnd))) else {
         return;
@@ -30,9 +32,14 @@ pub(crate) fn toggle_tray_flyout(monitor: isize) {
     if hwnd.0.is_null() {
         return;
     }
+    ui.set_svcs(ModelRc::default());
     let (cols, w, h) = fly_size(items.len(), scale);
     ui.set_cols(cols);
     ui.set_items(ModelRc::new(VecModel::from(items)));
+    show_fly(hwnd, rect, w, h, scale);
+}
+
+fn show_fly(hwnd: HWND, rect: RECT, w: i32, h: i32, scale: f32) {
     let mut cursor = POINT::default();
     unsafe {
         let _ = GetCursorPos(&mut cursor);
@@ -43,6 +50,86 @@ pub(crate) fn toggle_tray_flyout(monitor: isize) {
     start_dismiss();
 }
 
+const SVC_FLY_WIDTH: f32 = 220.0;
+
+fn svc_fly_size(n: usize, scale: f32) -> (i32, i32) {
+    ((SVC_FLY_WIDTH * scale).round() as i32, ((n as f32 * 34.0 + 10.0) * scale).round() as i32)
+}
+
+// Opens the flyout listing the services of one bar group (0 personal, 1 work).
+pub(crate) fn toggle_services_flyout(monitor: isize, kind: usize) {
+    hide_tip();
+    if POPUPS.with(|p| p.borrow().as_ref().is_some_and(|p| p.fly_open)) {
+        close_popups();
+        return;
+    }
+    let recent = TRACK
+        .with(|t| t.closed_at.take())
+        .is_some_and(|(t, k, m)| k == 3 && m == monitor && t.elapsed() < Duration::from_millis(400))
+        && TRACK.with(|t| t.fly_kind.get()) == kind as i32;
+    let rows = crate::services::members(kind);
+    if recent || rows.is_empty() {
+        return;
+    }
+    let Some((rect, scale)) = with_bar(monitor, |b| (b.rect, b.scale)) else { return };
+    TRACK.with(|t| {
+        t.open_mon.set(monitor);
+        t.fly_mon.set(monitor);
+        t.fly_kind.set(kind as i32);
+    });
+    close_popups();
+    let Some((ui, hwnd)) = POPUPS.with(|p| p.borrow().as_ref().map(|p| (p.fly.clone_strong(), p.fly_hwnd))) else {
+        return;
+    };
+    if hwnd.0.is_null() {
+        return;
+    }
+    ui.set_items(ModelRc::default());
+    ui.set_svcs(ModelRc::new(VecModel::from(rows.into_iter().map(|r| r.0).collect::<Vec<_>>())));
+    let (w, h) = svc_fly_size(ui.get_svcs().row_count(), scale);
+    show_fly(hwnd, rect, w, h, scale);
+}
+
+// Opens the n-th service of the open services flyout and closes it.
+pub(crate) fn svc_row_clicked(index: usize) {
+    let kind = TRACK.with(|t| t.fly_kind.get());
+    if kind < 0 {
+        return;
+    }
+    let id = crate::services::members(kind as usize).get(index).map(|r| r.1.clone());
+    close_popups();
+    if let Some(id) = id {
+        crate::services::open(&id);
+    }
+}
+
+// Keeps an open services flyout's counts and flash in sync.
+pub(crate) fn refresh_services_flyout() {
+    let open = POPUPS.with(|p| p.try_borrow().ok().is_some_and(|p| p.as_ref().is_some_and(|p| p.fly_open)));
+    let kind = TRACK.with(|t| t.fly_kind.get());
+    if !open || kind < 0 {
+        return;
+    }
+    refresh_group(kind as usize);
+}
+
+fn refresh_group(kind: usize) {
+    let Some(ui) = POPUPS.with(|p| p.try_borrow().ok().and_then(|p| p.as_ref().map(|p| p.fly.clone_strong()))) else {
+        return;
+    };
+    let rows: Vec<SvcItem> = crate::services::members(kind).into_iter().map(|r| r.0).collect();
+    let current = ui.get_svcs();
+    if current.row_count() != rows.len() {
+        close_popups();
+        return;
+    }
+    for (i, r) in rows.into_iter().enumerate() {
+        if current.row_data(i).is_none_or(|c| c != r) {
+            current.set_row_data(i, r);
+        }
+    }
+}
+
 // Keeps an open flyout in sync when overflow icons come, go or change.
 pub(crate) fn refresh_tray_flyout() {
     let Some((ui, hwnd, open)) =
@@ -51,6 +138,11 @@ pub(crate) fn refresh_tray_flyout() {
         return;
     };
     if !open {
+        return;
+    }
+    let kind = TRACK.with(|t| t.fly_kind.get());
+    if kind != TRAY_KIND {
+        refresh_group(kind as usize);
         return;
     }
     let items = crate::tray::overflow_items();

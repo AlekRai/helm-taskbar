@@ -3411,6 +3411,7 @@ dependencies = [
  "slint",
  "slint-build",
  "toml",
+ "webservices",
  "windows",
  "windows-core",
 ]
