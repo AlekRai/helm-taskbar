@@ -34,7 +34,7 @@ if (window.top === window) {
   }
   // Clicks the row's own "Mark as read" button.
   window.__markRead = function (id) {
-    var conv = decodeURIComponent(id);
+    var conv = decodeURIComponent(id.split('/').pop());
     var rows = document.querySelectorAll('[role="listbox"] [role="option"][data-convid]');
     for (var i = 0; i < rows.length; i++) {
       if (rows[i].getAttribute('data-convid') !== conv) continue;

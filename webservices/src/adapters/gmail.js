@@ -47,6 +47,7 @@ if (window.top === window) {
   }
   // Marks a conversation read through Gmail's own action endpoint, then re-reads the unread list.
   window.__markRead = function (id) {
+    id = id.split('/').pop();
     var at = (document.cookie.match(/GMAIL_AT=([^;]+)/) || [])[1];
     var ik = window.GLOBALS && String(window.GLOBALS[9]);
     if (!at || !ik || !/^[0-9a-f]+$/.test(id)) return;

@@ -152,9 +152,8 @@ pub(crate) fn mail_row_read(index: usize) {
     let id = TRACK.with(|t| t.mail_id.borrow().clone());
     let url = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone());
     let Some(url) = url else { return };
-    if let Some(mail) = url.rsplit('/').next() {
-        webservices::run_script(&id, &format!("window.__markRead && window.__markRead('{mail}')"));
-    }
+    let arg = url.replace('\\', "\\\\").replace('\'', "\\'");
+    webservices::run_script(&id, &format!("window.__markRead && window.__markRead('{arg}')"));
     crate::services::mark_read_pending(&url);
     refresh_mail_panel();
 }

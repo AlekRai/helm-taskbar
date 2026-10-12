@@ -3,6 +3,7 @@
 function panelSel() {
   if (location.hostname === 'mail.google.com') return '.aeF';
   if (/outlook\.(cloud\.microsoft|office\.com|live\.com)$/.test(location.hostname)) return '#ReadingPaneContainerId';
+  if (/(^|\.)messenger\.com$/.test(location.hostname)) return '[role=main]';
   return '';
 }
 if (window.top === window) {

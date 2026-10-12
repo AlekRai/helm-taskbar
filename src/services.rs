@@ -147,7 +147,7 @@ pub(crate) fn mail_rows(id: &str, scale: f32) -> Vec<(SvcItem, Option<String>)> 
     let mut rows = Vec::new();
     MARKED.with(|m| m.borrow_mut().retain(|_, t| t.elapsed() < MARKED_HIDE));
     for m in s.mail.iter().filter(|m| !MARKED.with(|h| h.borrow().contains_key(&m.url))) {
-        let name = if m.from.is_empty() { m.title.clone() } else { format!("{} \u{2014} {}", m.from, m.title) };
+        let name = if m.from.is_empty() || m.title.is_empty() { if m.title.is_empty() { m.from.clone() } else { m.title.clone() } } else { format!("{} \u{2014} {}", m.from, m.title) };
         rows.push((SvcItem { name: name.into(), count: 0, flashing: FLASH.with(|f| f.borrow().contains(&m.url)), meeting: false, ..base.clone() }, Some(m.url.clone())));
     }
     rows
@@ -158,7 +158,7 @@ pub(crate) fn mail_tip(id: &str, index: usize) -> String {
     let Some(url) = mail_rows(id, 1.0).get(index).and_then(|r| r.1.clone()) else { return String::new() };
     let all = webservices::status();
     let Some(m) = all.iter().find(|s| s.id == id).and_then(|s| s.mail.iter().find(|m| m.url == url)) else { return String::new() };
-    let head = if m.from.is_empty() { m.title.clone() } else { format!("{}\n{}", m.from, m.title) };
+    let head = if m.from.is_empty() || m.title.is_empty() { format!("{}{}", m.from, m.title) } else { format!("{}\n{}", m.from, m.title) };
     if m.preview.is_empty() { head } else { format!("{head}\n\n{}", m.preview) }
 }
 
