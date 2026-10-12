@@ -749,6 +749,10 @@ fn on_message(id: &str, msg: &str) {
             if v.reported && more {
                 v.attention = true;
             }
+            // Read elsewhere (e.g. in an already open window): nothing left to flash for.
+            if unread == 0 && !meeting {
+                v.attention = false;
+            }
             v.reported = true;
             v.unread = unread;
             v.meeting = meeting;

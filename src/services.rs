@@ -175,7 +175,10 @@ thread_local! {
 pub(crate) fn track_mail() {
     let settle = std::time::Duration::from_secs(load_svc().flash_settle_s as u64);
     let mut chime = false;
-    for s in webservices::status() {
+    let all = webservices::status();
+    // Mails that are no longer unread stop flashing.
+    FLASH.with(|f| f.borrow_mut().retain(|u| all.iter().any(|s| s.mail.iter().any(|m| m.url == *u))));
+    for s in all {
         let settled = FIRST.with(|f| f.borrow_mut().entry(s.id.clone()).or_insert_with(std::time::Instant::now).elapsed() > settle);
         for m in &s.mail {
             let fresh = SEEN.with(|seen| seen.borrow_mut().insert(m.url.clone()));
