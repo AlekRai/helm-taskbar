@@ -28,6 +28,9 @@ pub(super) fn open_rects() -> Vec<RECT> {
                 v.push(r);
             }
         }
+        if let Some((l, t, r, b)) = webservices::panel_rect() {
+            v.push(RECT { left: l, top: t, right: r, bottom: b });
+        }
         v
     })
 }
@@ -109,6 +112,7 @@ pub(crate) fn close_popups() {
             }
         }
     }
+    webservices::hide_panel();
     OPEN_MENU.with(|m| m.borrow_mut().take());
     TIP_TIMER.with(|t| t.stop());
     ENTER.with(|t| t.stop());

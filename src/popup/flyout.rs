@@ -133,17 +133,17 @@ pub(crate) fn mail_row_clicked(index: usize) {
     if unsafe { GetWindowRect(hwnd, &mut r) }.is_err() {
         return;
     }
-    let (w, group) = ((MAIL_PANEL_WIDTH * scale).round() as i32, (SVC_FLY_WIDTH * scale).round() as i32);
-    let mut top = screen.top;
+    let w = (MAIL_PANEL_WIDTH * scale).round() as i32;
+    let mut area = screen;
     unsafe {
-        let mut mi = windows::Win32::Graphics::Gdi::MONITORINFO { cbSize: size_of::<windows::Win32::Graphics::Gdi::MONITORINFO>() as u32, ..Default::default() };
-        if windows::Win32::Graphics::Gdi::GetMonitorInfoW(windows::Win32::Graphics::Gdi::HMONITOR(mon as *mut _), &mut mi).as_bool() {
-            top = mi.rcMonitor.top;
+        let mut mi = MONITORINFO { cbSize: size_of::<MONITORINFO>() as u32, ..Default::default() };
+        if GetMonitorInfoW(HMONITOR(mon as *mut _), &mut mi).as_bool() {
+            area = mi.rcMonitor;
         }
     }
-    let h = ((MAIL_PANEL_HEIGHT * scale).round() as i32).min(r.bottom - top - GAP);
-    let x = if ui.get_mail_left() { r.right - group - w } else { r.left + group };
-    close_popups();
+    let h = ((MAIL_PANEL_HEIGHT * scale).round() as i32).min(r.bottom - area.top - GAP);
+    // The panel sits beside the flyout, on the side the mail list grew towards.
+    let x = if ui.get_mail_left() { (r.left - w).max(area.left) } else { r.right.min(area.right - w) };
     crate::services::open_panel(&id, &url, (x, r.bottom - h, w, h));
 }
 fn show_mail_list(id: String, rows: Vec<(SvcItem, Option<String>)>, scale: f32) {

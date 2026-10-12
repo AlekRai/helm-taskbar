@@ -134,6 +134,27 @@ pub fn open_url(id: &str, url: &str) {
 
 const PANEL_ID: &str = "mailpanel";
 
+fn panel_hwnd() -> Option<HWND> {
+    SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == PANEL_ID).map(|v| v.hwnd))
+}
+
+// Screen rect (left, top, right, bottom) of the mail panel while it is showing.
+pub fn panel_rect() -> Option<(i32, i32, i32, i32)> {
+    let hwnd = panel_hwnd()?;
+    let mut r = RECT::default();
+    unsafe {
+        (IsWindowVisible(hwnd).as_bool() && GetWindowRect(hwnd, &mut r).is_ok()).then_some((r.left, r.top, r.right, r.bottom))
+    }
+}
+
+pub fn hide_panel() {
+    if let Some(hwnd) = panel_hwnd() {
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_HIDE);
+        }
+    }
+}
+
 // Shows one mail on its own (no folders or toolbar) in a borderless window at `rect` (x, y, w, h).
 // It uses the profile of service `id` and hides itself when it loses focus.
 pub fn open_panel(id: &str, url: &str, rect: (i32, i32, i32, i32)) {
