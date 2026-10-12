@@ -87,6 +87,17 @@ pub(crate) fn open_panel(id: &str, url: &str, rect: (i32, i32, i32, i32)) {
     webservices::open_panel(id, url, rect);
 }
 
+thread_local! {
+    // Mails just marked read: hidden from the list at once, shown again if still unread after a minute.
+    static MARKED: std::cell::RefCell<std::collections::HashMap<String, std::time::Instant>> = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+const MARKED_HIDE: std::time::Duration = std::time::Duration::from_secs(60);
+
+pub(crate) fn mark_read_pending(url: &str) {
+    MARKED.with(|m| m.borrow_mut().insert(url.to_owned(), std::time::Instant::now()));
+}
+
 // Unread mails of a service for the mail list, each with the url that opens it.
 pub(crate) fn mail_rows(id: &str, scale: f32) -> Vec<(SvcItem, Option<String>)> {
     let all = webservices::status();
@@ -96,7 +107,8 @@ pub(crate) fn mail_rows(id: &str, scale: f32) -> Vec<(SvcItem, Option<String>)> 
     }
     let base = row_item(0, s, scale);
     let mut rows = Vec::new();
-    for m in &s.mail {
+    MARKED.with(|m| m.borrow_mut().retain(|_, t| t.elapsed() < MARKED_HIDE));
+    for m in s.mail.iter().filter(|m| !MARKED.with(|h| h.borrow().contains_key(&m.url))) {
         let name = if m.from.is_empty() { m.title.clone() } else { format!("{} \u{2014} {}", m.from, m.title) };
         rows.push((SvcItem { name: name.into(), count: 0, flashing: false, meeting: false, ..base.clone() }, Some(m.url.clone())));
     }

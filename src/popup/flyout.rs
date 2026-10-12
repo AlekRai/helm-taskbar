@@ -134,9 +134,12 @@ pub(crate) fn svc_row_middle(index: usize) {
 pub(crate) fn mail_row_read(index: usize) {
     let id = TRACK.with(|t| t.mail_id.borrow().clone());
     let url = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone());
-    if let Some(mail) = url.and_then(|u| u.rsplit('/').next().map(str::to_owned)) {
+    let Some(url) = url else { return };
+    if let Some(mail) = url.rsplit('/').next() {
         webservices::run_script(&id, &format!("window.__markRead && window.__markRead('{mail}')"));
     }
+    crate::services::mark_read_pending(&url);
+    refresh_mail_panel();
 }
 
 // Middle click on a mail: opens it in the full service window.
