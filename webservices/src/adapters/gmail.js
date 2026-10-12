@@ -27,10 +27,12 @@ if (window.top === window) {
         var rows = (t.match(/<entry>[\s\S]*?<\/entry>/g) || []).map(function (e) {
           var id = /message_id=([0-9a-f]+)/.exec(e);
           var title = /<title>([\s\S]*?)<\/title>/.exec(e);
+          var sum = /<summary>([\s\S]*?)<\/summary>/.exec(e);
           var from = /<name>([\s\S]*?)<\/name>/.exec(e);
           return {
             from: from ? dec(from[1]) : '',
             title: title ? dec(title[1]) : '',
+            preview: sum ? dec(sum[1]) : '',
             url: id ? 'https://mail.google.com' + gmBase + '#inbox/' + id[1] : '',
           };
         });

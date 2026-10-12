@@ -12,10 +12,10 @@
     name: function (n) {
       if (n && n !== lastName) { lastName = n; window.chrome.webview.postMessage('name|' + n); }
     },
-    // Unread mails as [{from, title, url}] (tab/newline separated on the wire).
+    // Unread mails as [{from, title, url, preview}] (tab/newline separated on the wire).
     items: function (rows) {
       var clean = function (s) { return String(s || '').replace(/[\t\r\n|]+/g, ' ').trim(); };
-      var k = rows.slice(0, 20).map(function (r) { return [clean(r.from), clean(r.title), r.url].join('\t'); }).join('\n');
+      var k = rows.slice(0, 20).map(function (r) { return [clean(r.from), clean(r.title), r.url, clean(r.preview).slice(0, 400)].join('\t'); }).join('\n');
       if (k !== lastItems) { lastItems = k; window.chrome.webview.postMessage('items|' + k); }
     },
     title: function () {

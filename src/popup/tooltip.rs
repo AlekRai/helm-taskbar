@@ -21,6 +21,11 @@ pub(crate) fn svc_row_hovered(index: i32, on: bool) {
     hover_text(TRACK.with(|t| t.fly_mon.get()), on, true, move || crate::services::row_tip(kind as usize, index as usize));
 }
 
+pub(crate) fn mail_hovered(index: usize, on: bool) {
+    let id = TRACK.with(|t| t.mail_id.borrow().clone());
+    hover_text(TRACK.with(|t| t.fly_mon.get()), on, true, move || crate::services::mail_tip(&id, index));
+}
+
 fn hover_text(monitor: isize, on: bool, fly: bool, text: impl Fn() -> String + 'static) {
     TIP_TIMER.with(|t| t.stop());
     let delay = load_ui().tip_delay_ms;

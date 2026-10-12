@@ -131,7 +131,11 @@ pub(crate) fn svc_row_middle(index: usize) {
 }
 
 // Hovering a mail row stops it flashing.
-pub(crate) fn mail_row_hovered(index: usize) {
+pub(crate) fn mail_row_hovered(index: usize, on: bool) {
+    tooltip::mail_hovered(index, on);
+    if !on {
+        return;
+    }
     // Rows appearing under a still cursor while the window grows aren't a real hover.
     if LIST_SHOWN.with(|l| l.get()).is_some_and(|t| t.elapsed().as_millis() < 700) {
         return;

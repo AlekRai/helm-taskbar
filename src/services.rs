@@ -153,6 +153,15 @@ pub(crate) fn mail_rows(id: &str, scale: f32) -> Vec<(SvcItem, Option<String>)> 
     rows
 }
 
+// Tooltip for the n-th listed mail: sender, subject and a preview of the body.
+pub(crate) fn mail_tip(id: &str, index: usize) -> String {
+    let Some(url) = mail_rows(id, 1.0).get(index).and_then(|r| r.1.clone()) else { return String::new() };
+    let all = webservices::status();
+    let Some(m) = all.iter().find(|s| s.id == id).and_then(|s| s.mail.iter().find(|m| m.url == url)) else { return String::new() };
+    let head = if m.from.is_empty() { m.title.clone() } else { format!("{}\n{}", m.from, m.title) };
+    if m.preview.is_empty() { head } else { format!("{head}\n\n{}", m.preview) }
+}
+
 fn describe(s: &webservices::Status) -> String {
     let meeting = if s.meeting { " (in a meeting)" } else { "" };
     match s.unread {

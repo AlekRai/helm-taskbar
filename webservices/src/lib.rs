@@ -44,6 +44,7 @@ pub struct MailItem {
     pub from: String,
     pub title: String,
     pub url: String,
+    pub preview: String,
 }
 
 struct Settings {
@@ -578,7 +579,7 @@ fn on_message(id: &str, msg: &str) {
             .lines()
             .filter_map(|l| {
                 let mut p = l.split('\t');
-                Some(MailItem { from: p.next()?.into(), title: p.next()?.into(), url: p.next()?.into() })
+                Some(MailItem { from: p.next()?.into(), title: p.next()?.into(), url: p.next()?.into(), preview: p.next().unwrap_or_default().into() })
             })
             .collect();
         SVCS.with(|s| {
