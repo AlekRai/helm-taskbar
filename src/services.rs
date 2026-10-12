@@ -67,3 +67,25 @@ pub(crate) fn sync_bar(ui: &BarWindow, on: bool) -> f32 {
 pub(crate) fn open(id: &str) {
     webservices::open(id);
 }
+
+fn describe(s: &webservices::Status) -> String {
+    let meeting = if s.meeting { " (in a meeting)" } else { "" };
+    match s.unread {
+        0 => format!("{}: no unread{meeting}", s.name),
+        n => format!("{}: {n} unread{meeting}", s.name),
+    }
+}
+
+// Tooltip for a bar group button: one line per service.
+pub(crate) fn group_tip(kind: usize) -> String {
+    let Some((key, name)) = GROUPS.get(kind) else { return String::new() };
+    let all = webservices::status();
+    let lines: Vec<String> = group_rows(&all, key).into_iter().map(describe).collect();
+    format!("{name}\n{}", lines.join("\n"))
+}
+
+pub(crate) fn row_tip(kind: usize, index: usize) -> String {
+    let Some((key, _)) = GROUPS.get(kind) else { return String::new() };
+    let all = webservices::status();
+    group_rows(&all, key).get(index).map(|s| describe(s)).unwrap_or_default()
+}

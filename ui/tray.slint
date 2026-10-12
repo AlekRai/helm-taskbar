@@ -16,6 +16,7 @@ export component TrayFlyout inherits Window {
     callback clicked(int, int);
     callback hovered(int, bool);
     callback svc-clicked(int);
+    callback svc-hovered(int, bool);
 
     for s[i] in root.svcs: Rectangle {
         x: 6px;
@@ -56,6 +57,7 @@ export component TrayFlyout inherits Window {
             y: (parent.height - self.height) / 2;
         }
         sta := TouchArea {
+            changed has-hover => { root.svc-hovered(i, self.has-hover); }
             clicked => { root.svc-clicked(i); }
         }
     }

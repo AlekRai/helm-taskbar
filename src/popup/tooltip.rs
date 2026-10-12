@@ -9,6 +9,19 @@ pub(crate) fn fly_hovered(index: i32, on: bool) {
 }
 
 pub(super) fn hover_tip(monitor: isize, index: i32, on: bool, fly: bool) {
+    hover_text(monitor, on, fly, move || crate::tray::tip_for(index, fly));
+}
+
+pub(crate) fn svc_hovered(monitor: isize, kind: i32, on: bool) {
+    hover_text(monitor, on, false, move || crate::services::group_tip(kind as usize));
+}
+
+pub(crate) fn svc_row_hovered(index: i32, on: bool) {
+    let kind = TRACK.with(|t| t.fly_kind.get());
+    hover_text(TRACK.with(|t| t.fly_mon.get()), on, true, move || crate::services::row_tip(kind as usize, index as usize));
+}
+
+fn hover_text(monitor: isize, on: bool, fly: bool, text: impl Fn() -> String + 'static) {
     TIP_TIMER.with(|t| t.stop());
     let delay = load_ui().tip_delay_ms;
     if !on {
@@ -20,7 +33,7 @@ pub(super) fn hover_tip(monitor: isize, index: i32, on: bool, fly: bool) {
     }
     TIP_TIMER.with(|t| {
         t.start(slint::TimerMode::SingleShot, Duration::from_millis(delay as u64), move || {
-            show_tip(monitor, crate::tray::tip_for(index, fly), fly)
+            show_tip(monitor, text(), fly)
         })
     });
 }

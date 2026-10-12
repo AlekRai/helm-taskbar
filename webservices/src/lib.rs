@@ -13,14 +13,16 @@ use std::path::PathBuf;
 use webview2_com::Microsoft::Web::WebView2::Win32::*;
 use webview2_com::{
     AddScriptToExecuteOnDocumentCreatedCompletedHandler, CreateCoreWebView2ControllerCompletedHandler,
-    CreateCoreWebView2EnvironmentCompletedHandler, NewWindowRequestedEventHandler, PermissionRequestedEventHandler,
+    CreateCoreWebView2EnvironmentCompletedHandler, FaviconChangedEventHandler, GetFaviconCompletedHandler,
+    NewWindowRequestedEventHandler, PermissionRequestedEventHandler,
     WebMessageReceivedEventHandler, take_pwstr,
 };
 use windows::Win32::Foundation::*;
+use windows::Win32::System::Com::{IStream, STREAM_SEEK_SET};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::*;
-use windows::core::{PCWSTR, PWSTR, w};
+use windows::core::{Interface, PCWSTR, PWSTR, w};
 
 const CLASS: PCWSTR = w!("RustTaskbarService");
 const PRELUDE: &str = include_str!("adapters/prelude.js");
@@ -304,6 +306,16 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
         }));
         let _ = web.add_WebMessageReceived(&messages, &mut token);
 
+        // The page's favicon becomes the window (and so the taskbar button) icon.
+        if let Ok(web15) = web.cast::<ICoreWebView2_15>() {
+            let changed = FaviconChangedEventHandler::create(Box::new(move |sender, _| {
+                if let Some(web15) = sender.and_then(|w| w.cast::<ICoreWebView2_15>().ok()) {
+                    request_icon(&web15, hwnd);
+                }
+                Ok(())
+            }));
+            let _ = web15.add_FaviconChanged(&changed, &mut token);
+        }
         // Navigate only once the script is registered, or the first page load could miss it.
         let script = wide(&adapter_script(cfg));
         let url = wide(&cfg.url);
@@ -322,6 +334,51 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
             v.controller = Some(controller);
         }
     });
+}
+
+fn request_icon(web: &ICoreWebView2_15, hwnd: HWND) {
+    let done = GetFaviconCompletedHandler::create(Box::new(move |res, stream| {
+        if res.is_ok()
+            && let Some(bytes) = stream.and_then(|s| read_stream(&s))
+        {
+            set_window_icon(hwnd, &bytes);
+        }
+        Ok(())
+    }));
+    unsafe {
+        let _ = web.GetFavicon(COREWEBVIEW2_FAVICON_IMAGE_FORMAT_PNG, &done);
+    }
+}
+
+fn read_stream(stream: &IStream) -> Option<Vec<u8>> {
+    let mut out = Vec::new();
+    let mut buf = vec![0u8; 16 * 1024];
+    unsafe {
+        let _ = stream.Seek(0, STREAM_SEEK_SET, None);
+        loop {
+            let mut read = 0u32;
+            if stream.Read(buf.as_mut_ptr().cast(), buf.len() as u32, Some(&mut read)).is_err() || read == 0 {
+                break;
+            }
+            out.extend_from_slice(&buf[..read as usize]);
+        }
+    }
+    (!out.is_empty()).then_some(out)
+}
+
+// PNG data is accepted directly as icon resource bits.
+fn set_window_icon(hwnd: HWND, png: &[u8]) {
+    unsafe {
+        for (kind, size) in [(ICON_BIG, 32), (ICON_SMALL, 16)] {
+            let Ok(icon) = CreateIconFromResourceEx(png, true, 0x0003_0000, size, size, LR_DEFAULTCOLOR) else {
+                continue;
+            };
+            let prev = SendMessageW(hwnd, WM_SETICON, Some(WPARAM(kind as usize)), Some(LPARAM(icon.0 as isize)));
+            if prev.0 != 0 {
+                let _ = DestroyIcon(HICON(prev.0 as *mut _));
+            }
+        }
+    }
 }
 
 fn host_of(uri: &str) -> String {
@@ -352,6 +409,18 @@ fn on_message(id: &str, msg: &str) {
     let Some((a, b)) = msg.split_once('|') else { return };
     if a == "log" {
         log(&format!("[{id}] {b}"));
+        return;
+    }
+    if a == "name" {
+        SVCS.with(|s| {
+            if let Some(v) = s.borrow_mut().iter_mut().find(|v| v.cfg.id == id) {
+                v.cfg.name = b.to_string();
+                let t = wide(b);
+                unsafe {
+                    let _ = SetWindowTextW(v.hwnd, PCWSTR(t.as_ptr()));
+                }
+            }
+        });
         return;
     }
     let (Ok(unread), meeting) = (a.parse::<u32>(), b == "1") else { return };

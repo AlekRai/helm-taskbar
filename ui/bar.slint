@@ -235,14 +235,14 @@ export component GroupIcon inherits Rectangle {
 export component CountBadge inherits Rectangle {
     in property <int> count;
     visible: root.count > 0;
-    height: 13px;
-    width: root.count > 9 ? 19px : 13px;
-    border-radius: 6.5px;
+    height: 16px;
+    width: root.count > 9 ? 23px : 16px;
+    border-radius: 8px;
     background: Theme.accent;
     Text {
         text: root.count > 9 ? "9+" : "\{root.count}";
         color: #ffffff;
-        font-size: 9px;
+        font-size: 12px;
         font-weight: 700;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -273,6 +273,7 @@ export component MeetingGlyph inherits Rectangle {
 component SvcButton inherits Rectangle {
     in property <SvcItem> item;
     callback clicked();
+    callback hovered(bool);
     width: 34px;
 
     Rectangle {
@@ -303,10 +304,10 @@ component SvcButton inherits Rectangle {
         }
     }
     ta := TouchArea {
+        changed has-hover => { root.hovered(self.has-hover); }
         clicked => { root.clicked(); }
     }
 }
-
 component TrayButton inherits Rectangle {
     in property <TrayItem> item;
     // Draws a chevron instead of the item's icon.
@@ -362,6 +363,7 @@ export component BarWindow inherits Window {
     // Web-service group buttons (Personal, Work), left of the tray.
     in property <[SvcItem]> svc;
     callback svc-clicked(int);
+    callback svc-hovered(int, bool);
     // True when some tray icons live in the overflow flyout (a chevron button is shown).
     in property <bool> has-overflow: false;
     in property <string> clock;
@@ -434,6 +436,7 @@ export component BarWindow inherits Window {
         x: root.mx(root.width - root.clock-reserve - (root.tray.length + (root.has-overflow ? 1 : 0)) * 28px - (root.svc.length - i) * 34px, 34px);
         animate x { duration: Theme.anim; easing: ease-out; }
         clicked => { root.svc-clicked(i); }
+        hovered(h) => { root.svc-hovered(s.kind, h); }
     }
 
     if root.has-overflow: TrayButton {

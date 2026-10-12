@@ -147,6 +147,7 @@ unsafe fn create_bar(monitor: isize, rect: RECT) {
         ui.on_tray_hovered(move |i, on| crate::popup::tray_hovered(monitor, i, on));
         ui.on_overflow_clicked(move || crate::popup::toggle_tray_flyout(monitor));
         ui.on_svc_clicked(move |i| crate::popup::toggle_services_flyout(monitor, i as usize));
+        ui.on_svc_hovered(move |k, on| crate::popup::svc_hovered(monitor, k, on));
         ui.on_bar_pressed(|| {
             let _ = SetForegroundWindow(tray_hwnd());
         });

@@ -106,6 +106,7 @@ pub(crate) fn init_popups() {
     fly.on_clicked(|i, b| crate::tray::on_flyout_clicked(TRACK.with(|t| t.fly_mon.get()), i as usize, b));
     fly.on_hovered(fly_hovered);
     fly.on_svc_clicked(|i| svc_row_clicked(i as usize));
+    fly.on_svc_hovered(svc_row_hovered);
     crate::calendar::wire(&quick);
     crate::start::wire(&start);
     crate::quick::wire(&quick);
