@@ -235,7 +235,7 @@ impl Default for MonitorCfg {
     }
 }
 
-// Everything user-configurable lives in %APPDATA%\rust_taskbar\config.toml.
+// Everything user-configurable lives in %APPDATA%\Helm\config.toml.
 #[derive(Serialize, Deserialize, Clone, Default)]
 struct Config {
     // Start menu pinned apps (shell parsing names), in display order.
@@ -302,7 +302,13 @@ thread_local! {
 }
 
 pub(crate) fn config_dir() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("rust_taskbar"))
+    let appdata = PathBuf::from(std::env::var_os("APPDATA")?);
+    let (new, old) = (appdata.join("Helm"), appdata.join("rust_taskbar"));
+    // The app used to be called rust_taskbar: carry its settings and logins over once.
+    if !new.exists() && old.exists() && std::fs::rename(&old, &new).is_err() {
+        return Some(old);
+    }
+    Some(new)
 }
 
 fn config_file() -> Option<PathBuf> {

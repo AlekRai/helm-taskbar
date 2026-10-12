@@ -1450,6 +1450,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
+name = "helm"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "slint",
+ "slint-build",
+ "toml",
+ "webservices",
+ "windows",
+ "windows-core",
+]
+
+[[package]]
 name = "hermit-abi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3401,19 +3414,6 @@ dependencies = [
  "snafu",
  "unicode-linebreak",
  "unicode-width",
-]
-
-[[package]]
-name = "rust_taskbar"
-version = "0.1.0"
-dependencies = [
- "serde",
- "slint",
- "slint-build",
- "toml",
- "webservices",
- "windows",
- "windows-core",
 ]
 
 [[package]]

@@ -1,6 +1,7 @@
 [package]
-name = "rust_taskbar"
+name = "helm"
 version = "0.1.0"
+description = "A Windows 11 taskbar replacement"
 edition = "2024"
 
 [dependencies]

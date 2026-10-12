@@ -4,7 +4,8 @@ use windows::Win32::System::Registry::*;
 use windows::Win32::System::Threading::{CreateMutexW, INFINITE, PROCESS_SYNCHRONIZE, WaitForSingleObject};
 
 const RUN_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
-const VALUE: PCWSTR = w!("rust_taskbar");
+const VALUE: PCWSTR = w!("Helm");
+const OLD_VALUE: PCWSTR = w!("rust_taskbar");
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 fn exe_command() -> Option<String> {
@@ -47,8 +48,7 @@ pub(crate) fn set_enabled(on: bool) {
 
 // First run turns autostart on; afterwards the user's choice wins. An enabled entry is re-pointed at the current exe.
 pub(crate) fn init() {
-    let marker = std::env::var_os("APPDATA")
-        .map(|a| std::path::PathBuf::from(a).join("rust_taskbar").join("autostart_initialized"));
+    let marker = config_dir().map(|d| d.join("autostart_initialized"));
     if let Some(marker) = marker
         && !marker.exists() {
             if let Some(dir) = marker.parent() {
@@ -58,8 +58,35 @@ pub(crate) fn init() {
             set_enabled(true);
             return;
         }
-    if is_enabled() {
+    let old = old_entry_exists();
+    if old || is_enabled() {
         set_enabled(true);
+    }
+    if old {
+        remove_old_entry();
+    }
+}
+
+fn old_entry_exists() -> bool {
+    unsafe {
+        let mut key = HKEY::default();
+        if RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY, None, KEY_QUERY_VALUE, &mut key).is_err() {
+            return false;
+        }
+        let found = RegQueryValueExW(key, OLD_VALUE, None, None, None, None).is_ok();
+        let _ = RegCloseKey(key);
+        found
+    }
+}
+
+// Drops the Run entry from when the app was called rust_taskbar.
+fn remove_old_entry() {
+    unsafe {
+        let mut key = HKEY::default();
+        if RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY, None, KEY_SET_VALUE, &mut key).is_ok() {
+            let _ = RegDeleteValueW(key, OLD_VALUE);
+            let _ = RegCloseKey(key);
+        }
     }
 }
 
@@ -87,7 +114,7 @@ pub(crate) fn run_watchdog(pid: u32) {
 // Returns false if another instance already owns the mutex.
 pub(crate) fn acquire_single_instance() -> bool {
     unsafe {
-        let Ok(h) = CreateMutexW(None, true, w!("Local\\rust_taskbar_single_instance")) else { return true };
+        let Ok(h) = CreateMutexW(None, true, w!("Local\\Helm_single_instance")) else { return true };
         let already = GetLastError() == ERROR_ALREADY_EXISTS;
         if already {
             let _ = CloseHandle(h);

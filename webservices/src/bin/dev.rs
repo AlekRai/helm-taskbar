@@ -13,7 +13,7 @@ fn main() {
     let show = list(value("--show"));
     let only = list(value("--only"));
 
-    let base = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_default().join("rust_taskbar");
+    let base = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_default().join("Helm");
     webservices::init(base, debug, |m| eprintln!("{m}"));
 
     let mut cfgs = webservices::default_services();

@@ -4,7 +4,7 @@ pub(crate) fn to_wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-// Appends a line to %APPDATA%\rust_taskbar\log.txt; the file restarts once it passes 256 KB.
+// Appends a line to %APPDATA%\Helm\log.txt; the file restarts once it passes 256 KB.
 pub(crate) fn log(msg: &str) {
     use std::io::Write;
     let Some(dir) = config_dir() else { return };
