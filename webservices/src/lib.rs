@@ -36,6 +36,7 @@ struct Svc {
     attention: bool,
     reported: bool,
     mail: Vec<MailItem>,
+    shown: bool,
 }
 
 // One unread mail as shown in the bar's mail list.
@@ -204,6 +205,10 @@ pub fn open_panel(id: &str, url: &str, rect: (i32, i32, i32, i32)) {
             open_url(id, url);
             return;
         }
+        _ if url.starts_with("teams-thread:") => {
+            open_url(id, url);
+            return;
+        }
         Some(conv) => {
             deep = format!("https://teams.cloud.microsoft/l/chat/{conv}/conversations");
             deep.as_str()
@@ -241,7 +246,27 @@ pub fn open_panel(id: &str, url: &str, rect: (i32, i32, i32, i32)) {
     }
 }
 
+// Tells each page whether its window is on screen (adapters may rearrange a hidden page).
+fn sync_shown() {
+    let changed: Vec<(String, bool)> = SVCS.with(|s| {
+        s.borrow_mut()
+            .iter_mut()
+            .filter_map(|v| {
+                let now = unsafe { IsWindowVisible(v.hwnd).as_bool() };
+                (now != v.shown).then(|| {
+                    v.shown = now;
+                    (v.cfg.id.clone(), now)
+                })
+            })
+            .collect()
+    });
+    for (id, shown) in changed {
+        run_script(&id, &format!("window.__shown = {shown}"));
+    }
+}
+
 pub fn status() -> Vec<Status> {
+    sync_shown();
     SVCS.with(|s| {
         s.borrow()
             .iter()
@@ -278,6 +303,7 @@ fn launch(cfg: &ServiceCfg, show: bool) {
             attention: false,
             reported: false,
             mail: Vec::new(),
+            shown: false,
         })
     });
     start_webview(cfg.clone(), hwnd);

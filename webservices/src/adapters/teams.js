@@ -30,6 +30,7 @@ if (window.top === window) {
     chats.forEach(function (e) {
       // Quick views (followed threads, tag mentions) carry the Activity badge.
       if (e.getAttribute('data-item-type') === 'slice') {
+        if (convOf(e) === 'slice-activities-replies') return;
         var n = (e.innerText.match(/\n(\d+)\s*(\n|$)/) || [])[1];
         if (n) rows.push({ from: e.innerText.split('\n')[0] + ' (' + n + ')', title: '', url: 'teams-chat:' + convOf(e) });
         return;
@@ -40,6 +41,13 @@ if (window.top === window) {
       var el = tid && document.getElementById(tid);
       rows.push({ from: el ? el.innerText : e.innerText.split('\n')[0], title: '', url: 'teams-chat:' + convOf(e) });
     });
+    document.querySelectorAll('[data-testid="message-slice-card-threads"]').forEach(function (r) {
+      var ind = r.querySelector('[data-tid="message-slice-card-unread-indicator"]');
+      var dot = ind && ind.querySelector('[data-message-slice-card-unread-indicator]');
+      if (!ind || !((dot && dot.getAttribute('aria-label')) || ind.innerHTML.length > 170)) return;
+      var l = r.innerText.split('\n');
+      rows.push({ from: l[0] || '', title: l[2] || '', preview: l.slice(3, -1).join(' '), url: 'teams-thread:' + r.id.split('|').pop() });
+    });
     window.__rt.items(rows);
   }
   function findChat(id) {
@@ -48,6 +56,11 @@ if (window.top === window) {
   }
   // Opens a chat inside the running Teams page (the host then shows the window).
   window.__openChat = function (id) {
+    if (/^teams-thread:/.test(id)) {
+      var card = document.getElementById('message-slice-card-threads-ThreadsSliceCardItem|' + id.split(':')[1]);
+      if (card) card.click(); else window.__rt.log('open thread: not in list');
+      return;
+    }
     var e = findChat(id);
     if (e) e.click(); else window.__rt.log('open chat: not in list');
   };
@@ -64,4 +77,10 @@ if (window.top === window) {
   };
   window.__loadMails = loadMails;
   setInterval(loadMails, 3000);
+  // While the window is hidden the page rests on Followed threads, so its unread threads stay listed.
+  setInterval(function () {
+    if (window.__shown || !chatRows().length) return;
+    var s = document.querySelector('[data-testid="slice-list-item-slice-activities-replies"]');
+    if (s && !document.querySelector('[data-testid="message-slice-list-vl2-viewport"]')) s.click();
+  }, 4000);
 }
