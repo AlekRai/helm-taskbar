@@ -36,6 +36,7 @@ if (window.top === window) {
       })
       .catch(function (e) { window.__rt.log('mails error: ' + e); });
   }
+  window.__loadMails = loadMails;
   setInterval(loadMails, 10000);
   setTimeout(loadMails, 4000);
 }

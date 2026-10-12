@@ -16,11 +16,16 @@ export component TrayFlyout inherits Window {
     // Unread mails shown in a second panel next to the service rows.
     in property <[SvcItem]> mail;
     in property <bool> mail-left;
+    // Row of the service whose mail panel is open, and the mail row currently shown (-1: none).
+    in property <int> sel-svc: -1;
+    in property <int> sel-mail: -1;
     callback clicked(int, int);
     callback hovered(int, bool);
     callback svc-clicked(int);
     callback svc-hovered(int, bool);
     callback mail-clicked(int);
+    callback svc-middle(int);
+    callback mail-middle(int);
     property <length> gx: root.mail.length > 0 && root.mail-left ? 440px : 0px;
     property <length> mx: root.mail-left ? 0px : 220px;
 
@@ -30,8 +35,16 @@ export component TrayFlyout inherits Window {
         width: 428px;
         height: 32px;
         border-radius: Theme.button-radius;
-        background: mta.pressed && mta.has-hover ? Theme.popup-pressed : mta.has-hover ? Theme.popup-hover : transparent;
+        background: mta.pressed && mta.has-hover ? Theme.popup-pressed : (mta.has-hover || root.sel-mail == i) ? Theme.popup-hover : transparent;
         animate background { duration: Theme.anim; easing: ease-out; }
+        if root.sel-mail == i: Rectangle {
+            x: 0px;
+            y: 7px;
+            width: 3px;
+            height: parent.height - 14px;
+            border-radius: 1.5px;
+            background: Theme.accent;
+        }
         if m.has-icon: Image {
             source: m.icon;
             width: 18px;
@@ -51,6 +64,9 @@ export component TrayFlyout inherits Window {
         }
         mta := TouchArea {
             clicked => { root.mail-clicked(i); }
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.up && e.button == PointerEventButton.middle && self.has-hover) { root.mail-middle(i); }
+            }
         }
     }
 
@@ -68,8 +84,16 @@ export component TrayFlyout inherits Window {
         width: 208px;
         height: 32px;
         border-radius: Theme.button-radius;
-        background: sta.pressed && sta.has-hover ? Theme.popup-pressed : sta.has-hover ? Theme.popup-hover : transparent;
+        background: sta.pressed && sta.has-hover ? Theme.popup-pressed : (sta.has-hover || root.sel-svc == i) ? Theme.popup-hover : transparent;
         animate background { duration: Theme.anim; easing: ease-out; }
+        if root.sel-svc == i && root.mail.length > 0: Rectangle {
+            x: 0px;
+            y: 7px;
+            width: 3px;
+            height: parent.height - 14px;
+            border-radius: 1.5px;
+            background: Theme.accent;
+        }
         Rectangle {
             visible: s.flashing;
             border-radius: parent.border-radius;
@@ -110,6 +134,9 @@ export component TrayFlyout inherits Window {
         sta := TouchArea {
             changed has-hover => { root.svc-hovered(i, self.has-hover); }
             clicked => { root.svc-clicked(i); }
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.up && e.button == PointerEventButton.middle && self.has-hover) { root.svc-middle(i); }
+            }
         }
     }
 

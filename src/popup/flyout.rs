@@ -90,6 +90,7 @@ pub(crate) fn toggle_services_flyout(monitor: isize, kind: usize) {
     }
     ui.set_items(ModelRc::default());
     ui.set_mail(ModelRc::default());
+    ui.set_sel_svc(-1);
     ui.set_svcs(ModelRc::new(VecModel::from(rows.into_iter().map(|r| r.0).collect::<Vec<_>>())));
     let (w, h) = svc_fly_size(ui.get_svcs().row_count(), scale);
     show_fly(hwnd, rect, w, h, scale);
@@ -111,19 +112,39 @@ pub(crate) fn svc_row_clicked(index: usize) {
         crate::services::open(&id);
         return;
     }
-    show_mail_list(id, mails, scale);
+    show_mail_list(id, index, mails, scale);
 }
 
-// Opens the n-th entry of the mail panel: row 0 opens the service itself, the others show that
-// mail alone in a panel where the list was.
+// Middle click on a service row: opens its full window.
+pub(crate) fn svc_row_middle(index: usize) {
+    let kind = TRACK.with(|t| t.fly_kind.get());
+    if kind < 0 {
+        return;
+    }
+    let mon = TRACK.with(|t| t.fly_mon.get());
+    let scale = with_bar(mon, |b| b.scale).unwrap_or(1.0);
+    let id = crate::services::members(kind as usize, scale).get(index).map(|r| r.1.clone());
+    close_popups();
+    if let Some(id) = id {
+        crate::services::open(&id);
+    }
+}
+
+// Middle click on a mail: opens it in the full service window.
+pub(crate) fn mail_row_middle(index: usize) {
+    let id = TRACK.with(|t| t.mail_id.borrow().clone());
+    let url = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone());
+    close_popups();
+    if let Some(url) = url {
+        crate::services::open_url(&id, &url);
+    }
+}
+
+// Shows the n-th unread mail alone in a panel beside the flyout.
 pub(crate) fn mail_row_clicked(index: usize) {
     let id = TRACK.with(|t| t.mail_id.borrow().clone());
     let url = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone());
-    let Some(url) = url else {
-        close_popups();
-        crate::services::open(&id);
-        return;
-    };
+    let Some(url) = url else { return };
     let mon = TRACK.with(|t| t.fly_mon.get());
     let Some((screen, scale)) = with_bar(mon, |b| (b.rect, b.scale)) else { return };
     let Some((ui, hwnd)) = POPUPS.with(|p| p.borrow().as_ref().map(|p| (p.fly.clone_strong(), p.fly_hwnd))) else {
@@ -142,16 +163,19 @@ pub(crate) fn mail_row_clicked(index: usize) {
         }
     }
     let h = ((MAIL_PANEL_HEIGHT * scale).round() as i32).min(r.bottom - area.top - GAP);
+    ui.set_sel_mail(index as i32);
     // The panel sits beside the flyout, on the side the mail list grew towards.
     let x = if ui.get_mail_left() { (r.left - w).max(area.left) } else { r.right.min(area.right - w) };
     crate::services::open_panel(&id, &url, (x, r.bottom - h, w, h));
 }
-fn show_mail_list(id: String, rows: Vec<(SvcItem, Option<String>)>, scale: f32) {
+
+fn show_mail_list(id: String, svc_row: usize, rows: Vec<(SvcItem, Option<String>)>, scale: f32) {
     let Some((ui, hwnd)) = POPUPS.with(|p| p.borrow().as_ref().map(|p| (p.fly.clone_strong(), p.fly_hwnd))) else {
         return;
     };
     hide_tip();
     TRACK.with(|t| *t.mail_id.borrow_mut() = id);
+    ui.set_sel_svc(svc_row as i32);
     let n = rows.len().max(ui.get_svcs().row_count());
     let mon = TRACK.with(|t| t.fly_mon.get());
     let screen = with_bar(mon, |b| b.rect).unwrap_or_default();
@@ -161,7 +185,8 @@ fn show_mail_list(id: String, rows: Vec<(SvcItem, Option<String>)>, scale: f32) 
         let mut r = RECT::default();
         if GetWindowRect(hwnd, &mut r).is_ok() {
             // The panel grows away from the screen centre, keeping the service rows where they were.
-            let left = (r.left + r.right) / 2 > (screen.left + screen.right) / 2;
+            let shown = ui.get_mail().row_count() > 0;
+            let left = if shown { ui.get_mail_left() } else { (r.left + r.right) / 2 > (screen.left + screen.right) / 2 };
             ui.set_mail_left(left);
             ui.set_mail(ModelRc::new(VecModel::from(rows.into_iter().map(|r| r.0).collect::<Vec<_>>())));
             let x = if left { r.right - w } else { r.left };
@@ -177,6 +202,41 @@ pub(crate) fn refresh_services_flyout() {
         return;
     }
     refresh_group(kind as usize);
+    refresh_mail_panel();
+}
+
+// Once the opened mail's panel is gone, re-reads the unread list (the opened mail is no longer unread).
+fn refresh_mail_panel() {
+    let Some((ui, hwnd)) = POPUPS.with(|p| p.try_borrow().ok().and_then(|p| p.as_ref().map(|p| (p.fly.clone_strong(), p.fly_hwnd)))) else {
+        return;
+    };
+    if ui.get_mail().row_count() == 0 || webservices::panel_rect().is_some() {
+        return;
+    }
+    ui.set_sel_mail(-1);
+    let id = TRACK.with(|t| t.mail_id.borrow().clone());
+    let scale = with_bar(TRACK.with(|t| t.fly_mon.get()), |b| b.scale).unwrap_or(1.0);
+    let rows = crate::services::mail_rows(&id, scale);
+    let current = ui.get_mail();
+    let same = rows.len() == current.row_count() && rows.iter().enumerate().all(|(i, r)| current.row_data(i).is_some_and(|c| c == r.0));
+    if same {
+        return;
+    }
+    if !rows.is_empty() {
+        show_mail_list(id, ui.get_sel_svc().max(0) as usize, rows, scale);
+        return;
+    }
+    // Nothing unread any more: shrink back to the service rows.
+    ui.set_mail(ModelRc::default());
+    ui.set_sel_svc(-1);
+    let (w, h) = svc_fly_size(ui.get_svcs().row_count(), scale);
+    unsafe {
+        let mut r = RECT::default();
+        if GetWindowRect(hwnd, &mut r).is_ok() {
+            let x = if ui.get_mail_left() { r.right - w } else { r.left };
+            let _ = SetWindowPos(hwnd, None, x, r.bottom - h, w, h, SWP_NOACTIVATE | SWP_NOZORDER);
+        }
+    }
 }
 
 fn refresh_group(kind: usize) {

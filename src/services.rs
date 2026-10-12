@@ -79,11 +79,15 @@ pub(crate) fn open(id: &str) {
     webservices::open(id);
 }
 
+pub(crate) fn open_url(id: &str, url: &str) {
+    webservices::open_url(id, url);
+}
+
 pub(crate) fn open_panel(id: &str, url: &str, rect: (i32, i32, i32, i32)) {
     webservices::open_panel(id, url, rect);
 }
 
-// Unread mails of a service for the mail list: first row opens the service itself (no url).
+// Unread mails of a service for the mail list, each with the url that opens it.
 pub(crate) fn mail_rows(id: &str, scale: f32) -> Vec<(SvcItem, Option<String>)> {
     let all = webservices::status();
     let Some(s) = all.iter().find(|s| s.id == id) else { return Vec::new() };
@@ -91,7 +95,7 @@ pub(crate) fn mail_rows(id: &str, scale: f32) -> Vec<(SvcItem, Option<String>)> 
         return Vec::new();
     }
     let base = row_item(0, s, scale);
-    let mut rows = vec![(SvcItem { name: format!("Open {}", s.name).into(), count: 0, ..base.clone() }, None)];
+    let mut rows = Vec::new();
     for m in &s.mail {
         let name = if m.from.is_empty() { m.title.clone() } else { format!("{} \u{2014} {}", m.from, m.title) };
         rows.push((SvcItem { name: name.into(), count: 0, flashing: false, meeting: false, ..base.clone() }, Some(m.url.clone())));

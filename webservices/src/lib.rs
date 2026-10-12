@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use webview2_com::Microsoft::Web::WebView2::Win32::*;
 use webview2_com::{
     AddScriptToExecuteOnDocumentCreatedCompletedHandler, CreateCoreWebView2ControllerCompletedHandler,
-    CreateCoreWebView2EnvironmentCompletedHandler, FaviconChangedEventHandler, GetFaviconCompletedHandler,
+    CreateCoreWebView2EnvironmentCompletedHandler, ExecuteScriptCompletedHandler, FaviconChangedEventHandler, GetFaviconCompletedHandler,
     NewWindowRequestedEventHandler, PermissionRequestedEventHandler,
     WebMessageReceivedEventHandler, take_pwstr,
 };
@@ -55,6 +55,7 @@ thread_local! {
     static SVCS: RefCell<Vec<Svc>> = const { RefCell::new(Vec::new()) };
     static ENVS: RefCell<HashMap<String, ICoreWebView2Environment>> = RefCell::new(HashMap::new());
     static PENDING: RefCell<HashMap<String, Vec<(ServiceCfg, HWND)>>> = RefCell::new(HashMap::new());
+    static PANEL_SRC: RefCell<String> = const { RefCell::new(String::new()) };
     static SETTINGS: RefCell<Settings> = RefCell::new(Settings { base: PathBuf::new(), log: |_| {} });
 }
 
@@ -149,8 +150,27 @@ pub fn panel_rect() -> Option<(i32, i32, i32, i32)> {
 
 pub fn hide_panel() {
     if let Some(hwnd) = panel_hwnd() {
+        let shown = unsafe { IsWindowVisible(hwnd).as_bool() };
         unsafe {
             let _ = ShowWindow(hwnd, SW_HIDE);
+        }
+        if shown {
+            refresh_source();
+        }
+    }
+}
+
+// Makes the service that opened the panel re-read its unread mails (the opened one is now read).
+fn refresh_source() {
+    let id = PANEL_SRC.with(|p| p.borrow().clone());
+    let web = SVCS.with(|s| {
+        s.borrow().iter().find(|v| v.cfg.id == id).and_then(|v| v.controller.as_ref().and_then(|c| unsafe { c.CoreWebView2().ok() }))
+    });
+    if let Some(web) = web {
+        let js = wide("window.__loadMails && window.__loadMails()");
+        let done = ExecuteScriptCompletedHandler::create(Box::new(|_, _| Ok(())));
+        unsafe {
+            let _ = web.ExecuteScript(PCWSTR(js.as_ptr()), &done);
         }
     }
 }
@@ -159,6 +179,7 @@ pub fn hide_panel() {
 // It uses the profile of service `id` and hides itself when it loses focus.
 pub fn open_panel(id: &str, url: &str, rect: (i32, i32, i32, i32)) {
     let Some(mut cfg) = SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == id).map(|v| v.cfg.clone())) else { return };
+    PANEL_SRC.with(|p| *p.borrow_mut() = id.to_string());
     let existing = SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == PANEL_ID).map(|v| (v.hwnd, v.controller.clone())));
     let hwnd = match existing {
         Some((hwnd, controller)) => {
@@ -587,8 +608,8 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
                 if (wp.0 & 0xffff) == 0 {
                     let panel = SVCS.with(|s| s.borrow().iter().any(|v| v.hwnd == hwnd && v.cfg.id == PANEL_ID));
                     if panel {
-                        log("panel: deactivated, hiding");
                         let _ = ShowWindow(hwnd, SW_HIDE);
+                        refresh_source();
                     }
                 }
                 if (wp.0 & 0xffff) != 0 {
