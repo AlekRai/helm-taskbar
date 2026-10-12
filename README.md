@@ -94,6 +94,17 @@ Everything lives under `%APPDATA%\Helm\` (an existing `rust_taskbar` folder is m
 - Config edits go through `update_ui` / `update_theme` / `update_monitor` / `update_svc`; do not clone, edit and save by hand.
 - Slint popup windows share `Theme.popup-surface` as their background so they repaint reliably.
 
+## Notes and disclaimers
+
+- **Not affiliated.** Helm is an independent project. It is not affiliated with, endorsed by or sponsored by Microsoft, Google or Meta. Windows, Outlook, Teams, Gmail, Google and Messenger are trademarks of their respective owners and are used here only to describe compatibility.
+- **Web services.** Gmail, Outlook, Teams and Messenger are shown by loading their normal web pages in an embedded WebView2 and reading unread counts from the page. This is not an official API. It is intended for your own accounts, may break when the sites change, and may be restricted by those services' terms. Use at your own risk.
+- **Start menu hook.** To intercept the Win key, Helm loads a small hook DLL into the Windows Start menu host process. Some antivirus tools may flag this behaviour. Review the source in `src\start` before running a build.
+- **No warranty.** Helm replaces a core part of the shell. It is provided as is, without warranty; see the license.
+
+## License
+
+Helm is licensed under the [GNU General Public License v3.0](LICENSE). It uses Slint under the GPLv3 option of its [licensing terms](https://slint.dev/terms-and-conditions); other dependencies are MIT or Apache-2.0.
+
 ## Acknowledgements
 
 Built with [Slint](https://slint.dev), the [`windows`](https://github.com/microsoft/windows-rs) crate and [`webview2-com`](https://github.com/wravery/webview2-com).
