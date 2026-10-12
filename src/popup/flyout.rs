@@ -53,6 +53,14 @@ fn show_fly(hwnd: HWND, rect: RECT, w: i32, h: i32, scale: f32) {
 
 const SVC_FLY_WIDTH: f32 = 220.0;
 const MAIL_FLY_WIDTH: f32 = 440.0;
+const MAIL_FLY_MIN_WIDTH: f32 = 240.0;
+
+// Fits the mail list to its longest title (name column starts at 38px, tick button takes 42px, 12px margin).
+fn mail_panel_width(rows: &[(SvcItem, Option<String>)]) -> f32 {
+    let longest = rows.iter().map(|r| unsafe { crate::tasks::measure_text(r.0.name.as_str()) }).fold(0.0, f32::max);
+    // Slint renders 13px text a little wider than the 14px GDI measurement scaled down.
+    (38.0 + 42.0 + 12.0 + longest * 1.05).clamp(MAIL_FLY_MIN_WIDTH, MAIL_FLY_WIDTH)
+}
 const MAIL_PANEL_WIDTH: f32 = 560.0;
 const MAIL_PANEL_HEIGHT: f32 = 760.0;
 
@@ -216,7 +224,9 @@ fn show_mail_list(id: String, svc_row: usize, rows: Vec<(SvcItem, Option<String>
     let n = rows.len().max(ui.get_svcs().row_count());
     let mon = TRACK.with(|t| t.fly_mon.get());
     let screen = with_bar(mon, |b| b.rect).unwrap_or_default();
-    let w = ((SVC_FLY_WIDTH + MAIL_FLY_WIDTH) * scale).round() as i32;
+    let mail_w = mail_panel_width(&rows);
+    ui.set_mail_w(mail_w);
+    let w = ((SVC_FLY_WIDTH + mail_w) * scale).round() as i32;
     let h = ((n as f32 * 34.0 + 10.0) * scale).round() as i32;
     unsafe {
         let mut r = RECT::default();

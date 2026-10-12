@@ -16,6 +16,7 @@ export component TrayFlyout inherits Window {
     // Unread mails shown in a second panel next to the service rows.
     in property <[SvcItem]> mail;
     in property <bool> mail-left;
+    in property <length> mail-w: 440px;
     // Row of the service whose mail panel is open, and the mail row currently shown (-1: none).
     in property <int> sel-svc: -1;
     in property <int> sel-mail: -1;
@@ -28,13 +29,13 @@ export component TrayFlyout inherits Window {
     callback mail-middle(int);
     callback mail-read(int);
     callback mail-hovered(int, bool);
-    property <length> gx: root.mail.length > 0 && root.mail-left ? 440px : 0px;
+    property <length> gx: root.mail.length > 0 && root.mail-left ? root.mail-w : 0px;
     property <length> mx: root.mail-left ? 0px : 220px;
 
     for m[i] in root.mail: Rectangle {
         x: root.mx + 6px;
         y: 6px + i * 34px;
-        width: 428px;
+        width: root.mail-w - 12px;
         height: 32px;
         border-radius: Theme.button-radius;
         background: mta.pressed && mta.has-hover ? Theme.popup-pressed : (mta.has-hover || root.sel-mail == i) ? Theme.popup-hover : transparent;
@@ -99,7 +100,7 @@ export component TrayFlyout inherits Window {
     }
 
     if root.mail.length > 0: Rectangle {
-        x: root.mail-left ? 440px : 220px;
+        x: root.mail-left ? root.mail-w : 220px;
         y: 8px;
         width: 1px;
         height: parent.height - 16px;

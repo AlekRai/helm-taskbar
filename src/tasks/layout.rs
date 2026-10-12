@@ -25,7 +25,7 @@ pub(super) fn label_button_width(title: &str) -> f32 {
 }
 
 // Width in logical pixels of `text` at 14px Segoe UI.
-pub(super) unsafe fn measure_text(text: &str) -> f32 {
+pub(crate) unsafe fn measure_text(text: &str) -> f32 {
     unsafe {
         let hdc = CreateCompatibleDC(None);
         let face = to_wide("Segoe UI");
