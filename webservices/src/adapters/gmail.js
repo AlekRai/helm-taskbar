@@ -7,12 +7,15 @@ if (window.top === window) {
     // The tab title carries the account: "Inbox (5) - name@gmail.com - Gmail".
     var who = /([\w.+-]+)@[\w.-]+/.exec(document.title);
     if (who) window.__rt.name(who[1]);
+    if (feedOk) return;
     var link = document.querySelector('a.J-Ke[aria-label^="Inbox"]');
     if (!link) return;
     var m = /(\d[\d,]*)\s+unread/i.exec(link.getAttribute('aria-label'));
     window.__rt.report(m ? parseInt(m[1].replace(/,/g, ''), 10) : 0, false);
   }, 2000);
 
+  // Once the Primary feed answers it is the count source (the sidebar can miss unread mail).
+  var feedOk = false;
   function loadMails() {
     if (location.hostname !== 'mail.google.com') return;
     fetch(gmBase + 'feed/atom/%5Esq_ig_i_personal', { credentials: 'include' })
@@ -31,7 +34,11 @@ if (window.top === window) {
             url: id ? 'https://mail.google.com' + gmBase + '#inbox/' + id[1] : '',
           };
         });
-        window.__rt.log('mails: ' + rows.length + ' ' + t.length);
+        var full = /<fullcount>(\d+)<\/fullcount>/.exec(t);
+        if (full || rows.length) {
+          feedOk = true;
+          window.__rt.report(Math.max(full ? parseInt(full[1], 10) : 0, rows.length), false);
+        }
         window.__rt.items(rows);
       })
       .catch(function (e) { window.__rt.log('mails error: ' + e); });
