@@ -1,12 +1,26 @@
 // Unread count = the "Chats · N unread" label of the chat list, or the rows marked "Unread message".
+// Messenger sometimes keeps a chat unread when its last event is a reaction; those older than a day are ignored.
+function staleReaction(a) {
+  var lines = a.innerText.split('\n').map(function (s) { return s.trim(); });
+  var at = lines.findIndex(function (s) { return /^Unread message/i.test(s); });
+  if (at < 0 || !/^Reacted\b.*\bto your message/i.test(lines.slice(at + 1).join(' '))) return false;
+  var age = lines.filter(function (s) { return /^\d+\s*[smhdwy]$/.test(s); })[0] || '';
+  var m = /^(\d+)\s*([smhdwy])$/.exec(age);
+  return !!m && (/[dwy]/.test(m[2]) || (m[2] === 'h' && parseInt(m[1], 10) >= 24));
+}
+
 if (window.top === window) {
   setInterval(function () {
     if (!document.querySelector('[role="grid"], [aria-label^="Chats"]')) return;
     var tab = document.querySelector('a[aria-label^="Chats"][aria-label*="unread"]');
     var m = tab && /(\d+)\s+unread/i.exec(tab.getAttribute('aria-label'));
-    if (m) { window.__rt.report(parseInt(m[1], 10), false); return; }
+    if (m) {
+      var stale = Array.from(document.querySelectorAll('[role="grid"] a')).filter(staleReaction).length;
+      window.__rt.report(Math.max(0, parseInt(m[1], 10) - stale), false);
+      return;
+    }
     var rows = Array.from(document.querySelectorAll('[role="grid"] a')).filter(function (a) {
-      return /Unread message/i.test(a.innerText);
+      return /Unread message/i.test(a.innerText) && !staleReaction(a);
     });
     window.__rt.report(rows.length, false);
   }, 2000);
@@ -18,7 +32,7 @@ if (window.top === window) {
     var rows = [];
     links.forEach(function (a) {
       var t = a.innerText;
-      if (!/Unread message/i.test(t)) return;
+      if (!/Unread message/i.test(t) || staleReaction(a)) return;
       var lines = t.split('\n').map(function (s) { return s.trim(); }).filter(function (s) {
         return s && s !== '\u00b7' && s !== 'Active now' && s !== 'Reply?' && !/^\d+\s*[smhdwy]$/.test(s);
       });
