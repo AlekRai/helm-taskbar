@@ -165,6 +165,7 @@ thread_local! {
     // Mail urls ever listed, those new since start-up that still flash, and when each service was first seen.
     static SEEN: std::cell::RefCell<std::collections::HashSet<String>> = std::cell::RefCell::new(std::collections::HashSet::new());
     static FLASH: std::cell::RefCell<std::collections::HashSet<String>> = std::cell::RefCell::new(std::collections::HashSet::new());
+    static COUNTS: std::cell::RefCell<std::collections::HashMap<String, i64>> = std::cell::RefCell::new(std::collections::HashMap::new());
     static FIRST: std::cell::RefCell<std::collections::HashMap<String, std::time::Instant>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
@@ -180,8 +181,13 @@ pub(crate) fn track_mail() {
             let fresh = SEEN.with(|seen| seen.borrow_mut().insert(m.url.clone()));
             if fresh && settled {
                 FLASH.with(|f| f.borrow_mut().insert(m.url.clone()));
-                chime |= s.flash;
+                chime = true;
             }
+        }
+        // Any rise in a service's unread count is a notification too (covers services without a mail list and re-unread mail).
+        let prev = COUNTS.with(|c| c.borrow_mut().insert(s.id.clone(), s.unread as i64));
+        if settled && prev.is_some_and(|p| (s.unread as i64) > p) {
+            chime = true;
         }
     }
     if chime && load_svc().sound {
