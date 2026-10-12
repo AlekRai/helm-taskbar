@@ -109,6 +109,7 @@ pub(crate) fn track_mail() {
         for m in &s.mail {
             let fresh = SEEN.with(|seen| seen.borrow_mut().insert(m.url.clone()));
             if fresh && settled {
+                crate::util::log(&format!("mail flash: {} {}", s.id, m.title));
                 FLASH.with(|f| f.borrow_mut().insert(m.url.clone()));
             }
         }
@@ -116,7 +117,8 @@ pub(crate) fn track_mail() {
 }
 
 // Mouse over a flashing mail stops its flash.
-pub(crate) fn mail_seen(url: &str) {
+pub(crate) fn mail_seen(id: &str, url: &str) {
+    webservices::clear_attention(id);
     FLASH.with(|f| f.borrow_mut().remove(url));
 }
 

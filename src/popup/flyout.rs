@@ -134,7 +134,7 @@ pub(crate) fn svc_row_middle(index: usize) {
 pub(crate) fn mail_row_hovered(index: usize) {
     let id = TRACK.with(|t| t.mail_id.borrow().clone());
     if let Some(url) = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone()) {
-        crate::services::mail_seen(&url);
+        crate::services::mail_seen(&id, &url);
         refresh_mail_panel();
     }
 }

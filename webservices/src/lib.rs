@@ -166,6 +166,15 @@ fn refresh_source() {
     run_script(&id, "window.__loadMails && window.__loadMails()");
 }
 
+// Stops a service's attention flash (e.g. once the user looked at its new mail).
+pub fn clear_attention(id: &str) {
+    SVCS.with(|s| {
+        if let Some(v) = s.borrow_mut().iter_mut().find(|v| v.cfg.id == id) {
+            v.attention = false;
+        }
+    });
+}
+
 // Runs a script in a service's page.
 pub fn run_script(id: &str, script: &str) {
     let web = SVCS.with(|s| {
