@@ -658,6 +658,19 @@ fn is_microsoft(host: &str) -> bool {
     host_in(host, &["microsoft.com", "office.com", "cloud.microsoft", "live.com", "sharepoint.com", "office365.com", "microsoftonline.com"])
 }
 
+// A dark page gets a dark title bar in the page's own colour; a light page keeps the default one.
+fn set_caption_theme(hwnd: HWND, (r, g, b): (u32, u32, u32)) {
+    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DWMWA_USE_IMMERSIVE_DARK_MODE};
+    let dark = (r * 299 + g * 587 + b * 114) / 1000 < 128;
+    let flag = dark as u32;
+    let (caption, text) = if dark { (r | g << 8 | b << 16, 0x00ff_ffff_u32) } else { (0xffff_ffff, 0xffff_ffff) };
+    unsafe {
+        let _ = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &flag as *const _ as *const _, 4);
+        let _ = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &caption as *const _ as *const _, 4);
+        let _ = DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, &text as *const _ as *const _, 4);
+    }
+}
+
 // Widens the panel to fit its content (`client_w` physical px), growing away from the screen edge side it is nearest to.
 fn grow_panel(hwnd: HWND, client_w: i32) {
     unsafe {
@@ -687,6 +700,16 @@ fn on_message(id: &str, msg: &str) {
     let Some((a, b)) = msg.split_once('|') else { return };
     if a == "log" {
         log(&format!("[{id}] {b}"));
+        return;
+    }
+    if a == "theme" {
+        let v: Vec<u32> = b.split(',').filter_map(|x| x.parse().ok()).collect();
+        if let [r, g, bl] = v[..] {
+            let hwnd = SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == id).map(|v| v.hwnd));
+            if let Some(hwnd) = hwnd {
+                set_caption_theme(hwnd, (r, g, bl));
+            }
+        }
         return;
     }
     if a == "panelw" {

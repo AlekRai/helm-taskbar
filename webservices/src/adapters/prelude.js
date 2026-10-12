@@ -1,6 +1,21 @@
 (function () {
   if (window.top !== window) return;
   var last = '', lastName = '', lastItems = null;
+  // Tells the host the page's background colour so a dark page gets a dark title bar.
+  var lastBg = '';
+  function reportTheme() {
+    var e = document.elementFromPoint(Math.floor(window.innerWidth / 2), Math.floor(window.innerHeight / 2));
+    while (e) {
+      var m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/.exec(getComputedStyle(e).backgroundColor);
+      if (m && (m[4] === undefined || parseFloat(m[4]) > 0.5)) {
+        var k = m[1] + ',' + m[2] + ',' + m[3];
+        if (k !== lastBg) { lastBg = k; window.chrome.webview.postMessage('theme|' + k); }
+        return;
+      }
+      e = e.parentElement;
+    }
+  }
+  setInterval(reportTheme, 3000);
   window.__rt = {
     // Adapters call this with the unread total and whether a meeting is in progress.
     report: function (unread, meeting) {
