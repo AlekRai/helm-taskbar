@@ -20,7 +20,7 @@ pub(super) fn set_results(ui: &StartPopup) {
     let items: Vec<StartItem> = INDEX.with(|i| {
         let mut i = i.borrow_mut();
         let mut hits: Vec<(i32, usize)> =
-            i.apps.iter().enumerate().filter_map(|(n, a)| score(&a.name_lc, &q).map(|s| (s, n))).collect();
+            i.apps.iter().enumerate().filter_map(|(n, a)| score(&a.name_lc, &q).map(|s| (if pins.contains(&a.id) { s + 2000 } else { s }, n))).collect();
         hits.sort_by(|a, b| b.0.cmp(&a.0).then(i.apps[a.1].name_lc.cmp(&i.apps[b.1].name_lc)));
         hits.truncate(MAX_RESULTS);
         hits.into_iter().map(|(_, n)| item_for(&mut i, n, &pins)).collect()
