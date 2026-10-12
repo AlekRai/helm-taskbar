@@ -8,10 +8,23 @@ export struct StartItem {
     pinned: bool,
 }
 
+component Shield inherits Path {
+    in property <color> tint: Theme.text;
+    width: 12px;
+    height: 14px;
+    viewbox-width: 14;
+    viewbox-height: 16;
+    commands: "M 7 1 L 13 3 V 8 C 13 11.5 10 13.5 7 15 C 4 13.5 1 11.5 1 8 V 3 Z";
+    stroke: root.tint;
+    stroke-width: 1.6px;
+    fill: transparent;
+}
+
 component PinTile inherits Rectangle {
     in property <StartItem> item;
     callback launch();
     callback unpin();
+    callback launch-admin();
     width: 88px;
     height: 88px;
 
@@ -21,7 +34,7 @@ component PinTile inherits Rectangle {
         width: parent.width - 4px;
         height: parent.height - 4px;
         border-radius: Theme.button-radius + 2px;
-        background: ta.pressed ? Theme.pressed : ta.has-hover || x-ta.has-hover ? Theme.hover : transparent;
+        background: ta.pressed ? Theme.pressed : ta.has-hover || x-ta.has-hover || adm-ta.has-hover ? Theme.hover : transparent;
         animate background { duration: Theme.anim; easing: ease-out; }
     }
     Image {
@@ -45,7 +58,18 @@ component PinTile inherits Rectangle {
     }
     ta := TouchArea { clicked => { root.launch(); } }
     Rectangle {
-        visible: ta.has-hover || x-ta.has-hover;
+        visible: ta.has-hover || x-ta.has-hover || adm-ta.has-hover;
+        x: 4px;
+        y: 4px;
+        width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        background: adm-ta.has-hover ? Theme.selected-hover : Theme.selected;
+        Shield { x: 3px; y: 2px; width: 12px; height: 14px; }
+        adm-ta := TouchArea { clicked => { root.launch-admin(); } }
+    }
+    Rectangle {
+        visible: ta.has-hover || x-ta.has-hover || adm-ta.has-hover;
         x: parent.width - 22px;
         y: 4px;
         width: 18px;
@@ -62,6 +86,7 @@ component ResultRow inherits Rectangle {
     in property <bool> selected;
     callback launch();
     callback toggle-pin();
+    callback launch-admin();
     height: 44px;
 
     Rectangle {
@@ -78,7 +103,7 @@ component ResultRow inherits Rectangle {
     }
     Text {
         x: 52px;
-        width: parent.width - 52px - 80px;
+        width: parent.width - 52px - 112px;
         height: parent.height;
         text: root.item.name;
         color: Theme.text;
@@ -88,7 +113,18 @@ component ResultRow inherits Rectangle {
     }
     ta := TouchArea { clicked => { root.launch(); } }
     Rectangle {
-        visible: ta.has-hover || pin-ta.has-hover || root.selected;
+        visible: ta.has-hover || pin-ta.has-hover || adm-ta.has-hover || root.selected;
+        x: parent.width - 104px;
+        y: 8px;
+        width: 28px;
+        height: 28px;
+        border-radius: Theme.button-radius + 2px;
+        background: adm-ta.pressed ? Theme.pressed : adm-ta.has-hover ? Theme.selected-hover : Theme.selected;
+        Shield { x: 8px; y: 7px; width: 12px; height: 14px; }
+        adm-ta := TouchArea { clicked => { root.launch-admin(); } }
+    }
+    Rectangle {
+        visible: ta.has-hover || pin-ta.has-hover || adm-ta.has-hover || root.selected;
         x: parent.width - 72px;
         y: 8px;
         width: 64px;
@@ -130,7 +166,7 @@ export component StartPopup inherits Window {
     background: Theme.popup-surface;
     preferred-width: 560px;
     preferred-height: 620px;
-    title: "Rust Taskbar Start";
+    title: "Helm Start";
 
     in property <[StartItem]> pinned;
     in property <[StartItem]> results;
@@ -138,6 +174,7 @@ export component StartPopup inherits Window {
     in-out property <int> sel;
     callback query-changed(string);
     callback launch(string);
+    callback launch-admin(string);
     callback toggle-pin(string);
     callback power(int);
 
@@ -220,6 +257,7 @@ export component StartPopup inherits Window {
                         y: floor(i / 6) * 88px;
                         launch => { root.launch(item.id); }
                         unpin => { root.toggle-pin(item.id); }
+                        launch-admin => { root.launch-admin(item.id); }
                     }
                 }
             }
@@ -241,6 +279,7 @@ export component StartPopup inherits Window {
                         selected: i == root.sel;
                         launch => { root.launch(item.id); }
                         toggle-pin => { root.toggle-pin(item.id); }
+                        launch-admin => { root.launch-admin(item.id); }
                     }
                 }
             }

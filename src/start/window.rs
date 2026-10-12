@@ -29,6 +29,14 @@ pub(super) fn set_results(ui: &StartPopup) {
 }
 
 pub(super) fn launch(id: &str) {
+    launch_verb(id, w!("open"));
+}
+
+pub(super) fn launch_admin(id: &str) {
+    launch_verb(id, w!("runas"));
+}
+
+fn launch_verb(id: &str, verb: PCWSTR) {
     // Desktop apps may be plain paths; everything else is an AppsFolder entry (AUMID, GUID forms).
     let target = if id.get(1..3) == Some(":\\") || id.starts_with("\\\\") {
         id.to_string()
@@ -37,7 +45,7 @@ pub(super) fn launch(id: &str) {
     };
     let wide = to_wide(&target);
     unsafe {
-        ShellExecuteW(None, w!("open"), PCWSTR(wide.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL);
+        ShellExecuteW(None, verb, PCWSTR(wide.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL);
     }
 }
 
@@ -65,6 +73,10 @@ pub(crate) fn wire(ui: &StartPopup) {
     });
     ui.on_launch(|id| {
         launch(&id);
+        close_popups();
+    });
+    ui.on_launch_admin(|id| {
+        launch_admin(&id);
         close_popups();
     });
     ui.on_toggle_pin({
