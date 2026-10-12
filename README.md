@@ -16,6 +16,10 @@ One dark, fast bar per monitor with your windows, tray, quick settings, launcher
 
 ![Helm taskbar](docs/bar.png)
 
+<div align="center">
+<img src="docs/quick-settings.png" width="320" alt="Calendar and quick settings">
+</div>
+
 ---
 
 Helm hides the native taskbars and draws its own on every monitor. It is built with [Slint](https://slint.dev) (winit, software renderer) for the UI and Win32 for windows, tray, audio, network and input. Native taskbars are restored on quit, and a watchdog process restores them if Helm ever crashes.
