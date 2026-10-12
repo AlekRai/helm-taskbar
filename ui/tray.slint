@@ -27,6 +27,7 @@ export component TrayFlyout inherits Window {
     callback svc-middle(int);
     callback mail-middle(int);
     callback mail-read(int);
+    callback mail-hovered(int);
     property <length> gx: root.mail.length > 0 && root.mail-left ? 440px : 0px;
     property <length> mx: root.mail-left ? 0px : 220px;
 
@@ -46,6 +47,12 @@ export component TrayFlyout inherits Window {
             border-radius: 1.5px;
             background: Theme.accent;
         }
+        Rectangle {
+            visible: m.flashing;
+            border-radius: parent.border-radius;
+            background: Theme.accent;
+            opacity: 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg));
+        }
         if m.has-icon: Image {
             source: m.icon;
             width: 18px;
@@ -64,6 +71,7 @@ export component TrayFlyout inherits Window {
             vertical-alignment: center;
         }
         mta := TouchArea {
+            changed has-hover => { if (self.has-hover) { root.mail-hovered(i); } }
             clicked => { root.mail-clicked(i); }
             pointer-event(e) => {
                 if (e.kind == PointerEventKind.up && e.button == PointerEventButton.middle && self.has-hover) { root.mail-middle(i); }

@@ -92,6 +92,34 @@ thread_local! {
     static MARKED: std::cell::RefCell<std::collections::HashMap<String, std::time::Instant>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
+thread_local! {
+    // Mail urls ever listed, those new since start-up that still flash, and when each service was first seen.
+    static SEEN: std::cell::RefCell<std::collections::HashSet<String>> = std::cell::RefCell::new(std::collections::HashSet::new());
+    static FLASH: std::cell::RefCell<std::collections::HashSet<String>> = std::cell::RefCell::new(std::collections::HashSet::new());
+    static FIRST: std::cell::RefCell<std::collections::HashMap<String, std::time::Instant>> = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+// Mails already there at start-up (first feed reads) don't count as new.
+const SETTLE: std::time::Duration = std::time::Duration::from_secs(20);
+
+// Called every tick: marks mails that appeared since start-up as flashing.
+pub(crate) fn track_mail() {
+    for s in webservices::status() {
+        let settled = FIRST.with(|f| f.borrow_mut().entry(s.id.clone()).or_insert_with(std::time::Instant::now).elapsed() > SETTLE);
+        for m in &s.mail {
+            let fresh = SEEN.with(|seen| seen.borrow_mut().insert(m.url.clone()));
+            if fresh && settled {
+                FLASH.with(|f| f.borrow_mut().insert(m.url.clone()));
+            }
+        }
+    }
+}
+
+// Mouse over a flashing mail stops its flash.
+pub(crate) fn mail_seen(url: &str) {
+    FLASH.with(|f| f.borrow_mut().remove(url));
+}
+
 const MARKED_HIDE: std::time::Duration = std::time::Duration::from_secs(60);
 
 pub(crate) fn mark_read_pending(url: &str) {
@@ -110,7 +138,7 @@ pub(crate) fn mail_rows(id: &str, scale: f32) -> Vec<(SvcItem, Option<String>)> 
     MARKED.with(|m| m.borrow_mut().retain(|_, t| t.elapsed() < MARKED_HIDE));
     for m in s.mail.iter().filter(|m| !MARKED.with(|h| h.borrow().contains_key(&m.url))) {
         let name = if m.from.is_empty() { m.title.clone() } else { format!("{} \u{2014} {}", m.from, m.title) };
-        rows.push((SvcItem { name: name.into(), count: 0, flashing: false, meeting: false, ..base.clone() }, Some(m.url.clone())));
+        rows.push((SvcItem { name: name.into(), count: 0, flashing: FLASH.with(|f| f.borrow().contains(&m.url)), meeting: false, ..base.clone() }, Some(m.url.clone())));
     }
     rows
 }

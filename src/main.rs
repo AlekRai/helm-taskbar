@@ -57,7 +57,8 @@ fn tick() {
         push_tray();
     }
     forget_flashing_dead();
-    crate::popup::refresh_services_flyout();
+    crate::services::track_mail();
+        crate::popup::refresh_services_flyout();
     crate::settings::sync_open_window();
     refresh_all();
 }
