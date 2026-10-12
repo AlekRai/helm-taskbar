@@ -122,6 +122,11 @@ pub fn open(id: &str) {
 
 // Shows a service window and loads `url` in it (e.g. a specific mail).
 pub fn open_url(id: &str, url: &str) {
+    if url.starts_with("teams-chat:") {
+        run_script(id, &format!("window.__openChat && window.__openChat('{url}')"));
+        open(id);
+        return;
+    }
     let web = SVCS.with(|s| {
         s.borrow().iter().find(|v| v.cfg.id == id).and_then(|v| v.controller.as_ref().and_then(|c| unsafe { c.CoreWebView2().ok() }))
     });
@@ -193,6 +198,14 @@ pub fn run_script(id: &str, script: &str) {
 // Shows one mail on its own (no folders or toolbar) in a borderless window at `rect` (x, y, w, h).
 // It uses the profile of service `id` and hides itself when it loses focus.
 pub fn open_panel(id: &str, url: &str, rect: (i32, i32, i32, i32)) {
+    let deep;
+    let url = match url.strip_prefix("teams-chat:") {
+        Some(conv) => {
+            deep = format!("https://teams.cloud.microsoft/l/chat/{conv}/conversations");
+            deep.as_str()
+        }
+        None => url,
+    };
     let Some(mut cfg) = SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == id).map(|v| v.cfg.clone())) else { return };
     PANEL_SRC.with(|p| *p.borrow_mut() = id.to_string());
     let existing = SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == PANEL_ID).map(|v| (v.hwnd, v.controller.clone())));
