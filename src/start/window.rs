@@ -38,7 +38,9 @@ pub(super) fn launch_admin(id: &str) {
 
 fn launch_verb(id: &str, verb: PCWSTR) {
     // Desktop apps may be plain paths; everything else is an AppsFolder entry (AUMID, GUID forms).
-    let target = if id.get(1..3) == Some(":\\") || id.starts_with("\\\\") {
+    let target = if id.contains(':') && !id.contains("!") && id.get(1..3) != Some(":\\") && !id.starts_with("\\\\") {
+        id.to_string()
+    } else if id.get(1..3) == Some(":\\") || id.starts_with("\\\\") {
         id.to_string()
     } else {
         format!("shell:AppsFolder\\{id}")

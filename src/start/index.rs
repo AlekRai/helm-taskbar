@@ -1,5 +1,38 @@
 use super::*;
 
+// Settings pages searchable from the launcher: (title, ms-settings URI).
+const SETTINGS_PAGES: &[(&str, &str)] = &[
+    ("Add or remove programs", "ms-settings:appsfeatures"),
+    ("Installed apps", "ms-settings:appsfeatures"),
+    ("Default apps", "ms-settings:defaultapps"),
+    ("Startup apps", "ms-settings:startupapps"),
+    ("Optional features", "ms-settings:optionalfeatures"),
+    ("Wi-Fi settings", "ms-settings:network-wifi"),
+    ("Network and internet", "ms-settings:network"),
+    ("Bluetooth and devices", "ms-settings:bluetooth"),
+    ("Display settings", "ms-settings:display"),
+    ("Sound settings", "ms-settings:sound"),
+    ("Notifications settings", "ms-settings:notifications"),
+    ("Power and battery", "ms-settings:powersleep"),
+    ("Storage settings", "ms-settings:storagesense"),
+    ("Personalization", "ms-settings:personalization"),
+    ("Background and wallpaper", "ms-settings:personalization-background"),
+    ("Colors and dark mode", "ms-settings:colors"),
+    ("Taskbar settings", "ms-settings:taskbar"),
+    ("Date and time", "ms-settings:dateandtime"),
+    ("Language and region", "ms-settings:regionlanguage"),
+    ("Keyboard settings", "ms-settings:typing"),
+    ("Mouse settings", "ms-settings:mousetouchpad"),
+    ("Privacy and security", "ms-settings:privacy"),
+    ("Windows Update", "ms-settings:windowsupdate"),
+    ("Accounts", "ms-settings:yourinfo"),
+    ("Sign-in options", "ms-settings:signinoptions"),
+    ("About this PC", "ms-settings:about"),
+    ("Printers and scanners", "ms-settings:printers"),
+    ("Accessibility", "ms-settings:easeofaccess"),
+    ("Windows Security", "windowsdefender:"),
+];
+
 // Enumerates every app Windows lists in the Start menu (the AppsFolder).
 pub(crate) fn build_index() {
     let mut apps: Vec<App> = Vec::new();
@@ -25,6 +58,12 @@ pub(crate) fn build_index() {
                 }
                 apps.push(App { name_lc: name.to_lowercase(), name, id, item });
             }
+        }
+    }
+    // Settings pages borrow the Settings app's icon.
+    if let Some(icon_src) = apps.iter().find(|a| a.name_lc == "settings").map(|a| a.item.clone()) {
+        for (name, uri) in SETTINGS_PAGES {
+            apps.push(App { name_lc: name.to_lowercase(), name: name.to_string(), id: uri.to_string(), item: icon_src.clone() });
         }
     }
     apps.sort_by(|a, b| a.name_lc.cmp(&b.name_lc));
