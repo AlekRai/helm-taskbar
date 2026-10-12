@@ -108,6 +108,27 @@ pub fn start(cfgs: &[ServiceCfg], show: bool) {
     }
 }
 
+// Closes every service of a group (and the mail panel if it uses their profile), so their browser processes exit.
+pub fn stop_group(group: &str) {
+    let gone: Vec<Svc> = SVCS.with(|s| {
+        let mut s = s.borrow_mut();
+        let profiles: Vec<String> = s.iter().filter(|v| v.cfg.group == group).map(|v| v.cfg.profile.clone()).collect();
+        let (gone, keep): (Vec<Svc>, Vec<Svc>) = std::mem::take(&mut *s).into_iter().partition(|v| profiles.contains(&v.cfg.profile));
+        *s = keep;
+        gone
+    });
+    for v in gone {
+        ENVS.with(|e| e.borrow_mut().remove(&v.cfg.profile));
+        PENDING.with(|p| p.borrow_mut().remove(&v.cfg.profile));
+        unsafe {
+            if let Some(c) = &v.controller {
+                let _ = c.Close();
+            }
+            let _ = DestroyWindow(v.hwnd);
+        }
+    }
+}
+
 // Shows a service window, bringing it to the front.
 pub fn open(id: &str) {
     let hwnd = SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == id).map(|v| v.hwnd));

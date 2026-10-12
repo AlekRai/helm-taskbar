@@ -10,7 +10,31 @@ const GROUPS: [(&str, &str); 2] = [("personal", "Personal"), ("work", "Work")];
 pub(crate) fn start() {
     let Some(base) = config_dir() else { return };
     webservices::init(base, false, log);
-    webservices::start(&load_services(), false);
+    WORK_ON.with(|w| w.set(group_visible("work")));
+    start_active();
+}
+
+thread_local! {
+    static WORK_ON: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+}
+
+// Launches the services whose group is currently active (work only runs in work hours).
+fn start_active() {
+    let cfgs: Vec<_> = load_services().into_iter().filter(|c| group_visible(&c.group)).collect();
+    webservices::start(&cfgs, false);
+}
+
+// Called every tick: the work group is closed completely (no processes) outside its hours and reopened in them.
+pub(crate) fn schedule() {
+    let on = group_visible("work");
+    if WORK_ON.with(|w| w.replace(on)) == on {
+        return;
+    }
+    if on {
+        start_active();
+    } else {
+        webservices::stop_group("work");
+    }
 }
 
 // Services with a mail list flash while any of their mails does; others use their attention flag.
