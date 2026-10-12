@@ -536,11 +536,41 @@ fn is_microsoft(host: &str) -> bool {
     host_in(host, &["microsoft.com", "office.com", "cloud.microsoft", "live.com", "sharepoint.com", "office365.com", "microsoftonline.com"])
 }
 
+// Widens the panel to fit its content (`client_w` physical px), growing away from the screen edge side it is nearest to.
+fn grow_panel(hwnd: HWND, client_w: i32) {
+    unsafe {
+        let mut r = RECT::default();
+        let mut c = RECT::default();
+        if GetWindowRect(hwnd, &mut r).is_err() || GetClientRect(hwnd, &mut c).is_err() {
+            return;
+        }
+        let mon = windows::Win32::Graphics::Gdi::MonitorFromWindow(hwnd, windows::Win32::Graphics::Gdi::MONITOR_DEFAULTTONEAREST);
+        let mut mi = windows::Win32::Graphics::Gdi::MONITORINFO { cbSize: std::mem::size_of::<windows::Win32::Graphics::Gdi::MONITORINFO>() as u32, ..Default::default() };
+        if !windows::Win32::Graphics::Gdi::GetMonitorInfoW(mon, &mut mi).as_bool() {
+            return;
+        }
+        let frame = (r.right - r.left) - (c.right - c.left);
+        let width = (client_w + frame).min(mi.rcMonitor.right - mi.rcMonitor.left);
+        if width <= r.right - r.left {
+            return;
+        }
+        let mid = (mi.rcMonitor.left + mi.rcMonitor.right) / 2;
+        let mut left = if r.right > mid { r.right - width } else { r.left };
+        left = left.clamp(mi.rcMonitor.left, mi.rcMonitor.right - width);
+        let _ = SetWindowPos(hwnd, None, left, r.top, width, r.bottom - r.top, SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+}
 // Messages from adapters: "unread|meeting" (meeting is 0 or 1) or "log|text".
 fn on_message(id: &str, msg: &str) {
     let Some((a, b)) = msg.split_once('|') else { return };
     if a == "log" {
         log(&format!("[{id}] {b}"));
+        return;
+    }
+    if a == "panelw" {
+        if let (Ok(w), Some(hwnd)) = (b.parse::<i32>(), panel_hwnd()) {
+            grow_panel(hwnd, w);
+        }
         return;
     }
     if a == "items" {

@@ -11,19 +11,11 @@ if (window.top === window) {
       'z-index:99999;background:#fff;overflow:auto!important}';
     document.head.appendChild(s);
   }, 300);
-  // Wide (fixed-width) mails are shrunk to fit the panel instead of being cut off.
+  // Mails wider than the panel ask the host to widen the window.
   setInterval(function () {
     var el = document.querySelector('.aeF');
     if (!el || !document.getElementById('__panel')) return;
-    el.style.setProperty('zoom', '1', 'important');
-    el.style.setProperty('width', '100vw', 'important');
-    el.style.setProperty('height', '100vh', 'important');
     var need = el.scrollWidth, have = window.innerWidth;
-    if (need > have + 2) {
-      var z = Math.max(0.4, have / need);
-      el.style.setProperty('zoom', String(z), 'important');
-      el.style.setProperty('width', (100 / z) + 'vw', 'important');
-      el.style.setProperty('height', (100 / z) + 'vh', 'important');
-    }
-  }, 500);
+    if (need > have + 2) window.chrome.webview.postMessage('panelw|' + Math.ceil(need * window.devicePixelRatio));
+  }, 400);
 }
