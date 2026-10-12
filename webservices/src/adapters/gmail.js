@@ -43,6 +43,18 @@ if (window.top === window) {
       })
       .catch(function (e) { window.__rt.log('mails error: ' + e); });
   }
+  // Marks a conversation read through Gmail's own action endpoint, then re-reads the unread list.
+  window.__markRead = function (id) {
+    var at = (document.cookie.match(/GMAIL_AT=([^;]+)/) || [])[1];
+    var ik = window.GLOBALS && String(window.GLOBALS[9]);
+    if (!at || !ik || !/^[0-9a-f]+$/.test(id)) return;
+    fetch(gmBase + '?ui=2&ik=' + ik + '&at=' + at + '&view=up&act=rd&pcd=1&mb=0&rt=j&search=inbox', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 't=' + id,
+    }).then(loadMails, function () {});
+  };
   window.__loadMails = loadMails;
   setInterval(loadMails, 10000);
   setTimeout(loadMails, 4000);

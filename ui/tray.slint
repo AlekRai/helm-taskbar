@@ -26,6 +26,7 @@ export component TrayFlyout inherits Window {
     callback mail-clicked(int);
     callback svc-middle(int);
     callback mail-middle(int);
+    callback mail-read(int);
     property <length> gx: root.mail.length > 0 && root.mail-left ? 440px : 0px;
     property <length> mx: root.mail-left ? 0px : 220px;
 
@@ -54,7 +55,7 @@ export component TrayFlyout inherits Window {
         }
         Text {
             x: 38px;
-            width: parent.width - 38px - 10px;
+            width: parent.width - 38px - 42px;
             height: parent.height;
             text: m.name;
             color: Theme.text;
@@ -66,6 +67,25 @@ export component TrayFlyout inherits Window {
             clicked => { root.mail-clicked(i); }
             pointer-event(e) => {
                 if (e.kind == PointerEventKind.up && e.button == PointerEventButton.middle && self.has-hover) { root.mail-middle(i); }
+            }
+        }
+        // Marks the mail read without opening it.
+        Rectangle {
+            x: parent.width - 32px;
+            y: 4px;
+            width: 24px;
+            height: 24px;
+            border-radius: 12px;
+            background: rta.pressed && rta.has-hover ? Theme.popup-pressed : rta.has-hover ? Theme.popup-border : transparent;
+            Text {
+                text: "\u{2713}";
+                color: Theme.text;
+                font-size: 14px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            rta := TouchArea {
+                clicked => { root.mail-read(i); }
             }
         }
     }

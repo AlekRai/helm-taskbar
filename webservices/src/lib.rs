@@ -163,11 +163,16 @@ pub fn hide_panel() {
 // Makes the service that opened the panel re-read its unread mails (the opened one is now read).
 fn refresh_source() {
     let id = PANEL_SRC.with(|p| p.borrow().clone());
+    run_script(&id, "window.__loadMails && window.__loadMails()");
+}
+
+// Runs a script in a service's page.
+pub fn run_script(id: &str, script: &str) {
     let web = SVCS.with(|s| {
         s.borrow().iter().find(|v| v.cfg.id == id).and_then(|v| v.controller.as_ref().and_then(|c| unsafe { c.CoreWebView2().ok() }))
     });
     if let Some(web) = web {
-        let js = wide("window.__loadMails && window.__loadMails()");
+        let js = wide(script);
         let done = ExecuteScriptCompletedHandler::create(Box::new(|_, _| Ok(())));
         unsafe {
             let _ = web.ExecuteScript(PCWSTR(js.as_ptr()), &done);

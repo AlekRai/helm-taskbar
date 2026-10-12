@@ -112,6 +112,7 @@ pub(crate) fn init_popups() {
     fly.on_mail_clicked(|i| mail_row_clicked(i as usize));
     fly.on_svc_middle(|i| svc_row_middle(i as usize));
     fly.on_mail_middle(|i| mail_row_middle(i as usize));
+    fly.on_mail_read(|i| mail_row_read(i as usize));
     crate::calendar::wire(&quick);
     crate::start::wire(&start);
     crate::quick::wire(&quick);

@@ -130,6 +130,15 @@ pub(crate) fn svc_row_middle(index: usize) {
     }
 }
 
+// Marks the n-th unread mail read in Gmail; the list drops it once the feed is re-read.
+pub(crate) fn mail_row_read(index: usize) {
+    let id = TRACK.with(|t| t.mail_id.borrow().clone());
+    let url = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone());
+    if let Some(mail) = url.and_then(|u| u.rsplit('/').next().map(str::to_owned)) {
+        webservices::run_script(&id, &format!("window.__markRead && window.__markRead('{mail}')"));
+    }
+}
+
 // Middle click on a mail: opens it in the full service window.
 pub(crate) fn mail_row_middle(index: usize) {
     let id = TRACK.with(|t| t.mail_id.borrow().clone());
