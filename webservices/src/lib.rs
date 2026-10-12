@@ -695,6 +695,10 @@ fn grow_panel(hwnd: HWND, client_w: i32) {
         let _ = SetWindowPos(hwnd, None, left, r.top, width, r.bottom - r.top, SWP_NOZORDER | SWP_NOACTIVATE);
     }
 }
+thread_local! {
+    static THEMED: RefCell<std::collections::HashSet<isize>> = RefCell::new(Default::default());
+}
+
 // Messages from adapters: "unread|meeting" (meeting is 0 or 1) or "log|text".
 fn on_message(id: &str, msg: &str) {
     let Some((a, b)) = msg.split_once('|') else { return };
@@ -706,7 +710,8 @@ fn on_message(id: &str, msg: &str) {
         let v: Vec<u32> = b.split(',').filter_map(|x| x.parse().ok()).collect();
         if let [r, g, bl] = v[..] {
             let hwnd = SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == id).map(|v| v.hwnd));
-            if let Some(hwnd) = hwnd {
+            // Only the first colour counts; later page colour changes must not recolour the title bar.
+            if let Some(hwnd) = hwnd.filter(|h| THEMED.with(|t| t.borrow_mut().insert(h.0 as isize))) {
                 set_caption_theme(hwnd, (r, g, bl));
             }
         }
