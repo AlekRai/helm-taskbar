@@ -18,6 +18,15 @@
       var k = rows.slice(0, 20).map(function (r) { return [clean(r.from), clean(r.title), r.url, clean(r.preview).slice(0, 400)].join('\t'); }).join('\n');
       if (k !== lastItems) { lastItems = k; window.chrome.webview.postMessage('items|' + k); }
     },
+    // Setting from the host (window.__opts), or the default when unset.
+    opt: function (name, dflt) {
+      var o = window.__opts;
+      return o && o[name] !== undefined ? o[name] : dflt;
+    },
+    // Runs fn repeatedly at the configured poll interval (changes apply on the next pass).
+    poll: function (fn, min) {
+      (function next() { setTimeout(function () { try { fn(); } finally { next(); } }, Math.max(min || 0, window.__rt.opt('poll', 3000))); })();
+    },
     title: function () {
       var m = /^\s*\((\d+)\)/.exec(document.title);
       return m ? parseInt(m[1], 10) : 0;

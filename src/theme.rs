@@ -32,6 +32,7 @@ fn apply_values(th: &Theme<'_>, t: &ThemeCfg) {
     th.set_anim(t.animation_ms.min(2000) as i64);
     let ui_cfg = load_ui();
     th.set_popup_scale(ui_cfg.anim_scale());
+    th.set_badge_max(load_svc().badge_max.clamp(1, 999) as i32);
     th.set_app_icon(ui_cfg.icon_size.clamp(12, 32) as f32);
 }
 

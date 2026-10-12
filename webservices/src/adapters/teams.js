@@ -7,7 +7,7 @@ if (window.top === window) {
     bar.querySelectorAll('*').forEach(function (e) {
       if (e.children.length || !/^\d+\+?$/.test(e.textContent.trim())) return;
       var near = Array.from(e.parentElement.parentElement.children).concat(Array.from(e.parentElement.children));
-      var rail = near.some(function (s) { return /^(Activity|Chat) \(/.test(s.getAttribute('aria-label') || ''); });
+      var rail = near.some(function (s) { return (window.__rt.opt('activity', true) ? /^(Activity|Chat) \(/ : /^Chat \(/).test(s.getAttribute('aria-label') || ''); });
       if (rail) total += parseInt(e.textContent, 10);
     });
     // Own presence flips to "In a call" while joined to a call or meeting.
@@ -41,7 +41,7 @@ if (window.top === window) {
       var el = tid && document.getElementById(tid);
       rows.push({ from: el ? el.innerText : e.innerText.split('\n')[0], title: '', url: 'teams-chat:' + convOf(e) });
     });
-    document.querySelectorAll('[data-testid="message-slice-card-threads"]').forEach(function (r) {
+    (window.__rt.opt('threads', true) ? document.querySelectorAll('[data-testid="message-slice-card-threads"]') : []).forEach(function (r) {
       var ind = r.querySelector('[data-tid="message-slice-card-unread-indicator"]');
       var dot = ind && ind.querySelector('[data-message-slice-card-unread-indicator]');
       if (!ind || !((dot && dot.getAttribute('aria-label')) || ind.innerHTML.length > 170)) return;
@@ -76,10 +76,10 @@ if (window.top === window) {
     }, 500);
   };
   window.__loadMails = loadMails;
-  setInterval(loadMails, 3000);
+  window.__rt.poll(loadMails);
   // While the window is hidden the page rests on Followed threads, so its unread threads stay listed.
   setInterval(function () {
-    if (window.__shown || !chatRows().length) return;
+    if (window.__shown || !window.__rt.opt('threads', true) || !chatRows().length) return;
     var s = document.querySelector('[data-testid="slice-list-item-slice-activities-replies"]');
     if (s && !document.querySelector('[data-testid="message-slice-list-vl2-viewport"]')) s.click();
   }, 4000);

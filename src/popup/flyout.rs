@@ -106,7 +106,7 @@ pub(crate) fn svc_row_clicked(index: usize) {
     let mon = TRACK.with(|t| t.fly_mon.get());
     let scale = with_bar(mon, |b| b.scale).unwrap_or(1.0);
     let Some(id) = crate::services::members(kind as usize, scale).get(index).map(|r| r.1.clone()) else { return };
-    let mails = crate::services::mail_rows(&id, scale);
+    let mails = if load_svc().mail_list { crate::services::mail_rows(&id, scale) } else { Vec::new() };
     if mails.is_empty() {
         close_popups();
         crate::services::open(&id);
@@ -137,7 +137,7 @@ pub(crate) fn mail_row_hovered(index: usize, on: bool) {
         return;
     }
     // Rows appearing under a still cursor while the window grows aren't a real hover.
-    if LIST_SHOWN.with(|l| l.get()).is_some_and(|t| t.elapsed().as_millis() < 700) {
+    if LIST_SHOWN.with(|l| l.get()).is_some_and(|t| t.elapsed().as_millis() < load_svc().hover_guard_ms as u128) {
         return;
     }
     let id = TRACK.with(|t| t.mail_id.borrow().clone());
@@ -170,6 +170,10 @@ pub(crate) fn mail_row_middle(index: usize) {
 
 // Shows the n-th unread mail alone in a panel beside the flyout.
 pub(crate) fn mail_row_clicked(index: usize) {
+    if !load_svc().open_in_panel {
+        mail_row_middle(index);
+        return;
+    }
     let id = TRACK.with(|t| t.mail_id.borrow().clone());
     let url = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone());
     let Some(url) = url else { return };

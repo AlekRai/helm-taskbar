@@ -13,6 +13,8 @@ pub struct ServiceCfg {
     // Built-in adapter that counts unread items: gmail, outlook, messenger, teams or generic.
     pub adapter: String,
     pub enabled: bool,
+    // Flash the bar button when this service gets new mail.
+    pub flash: bool,
 }
 
 impl Default for ServiceCfg {
@@ -25,6 +27,7 @@ impl Default for ServiceCfg {
             profile: "default".into(),
             adapter: "generic".into(),
             enabled: true,
+            flash: true,
         }
     }
 }
@@ -38,6 +41,7 @@ pub fn default_services() -> Vec<ServiceCfg> {
         profile: profile.into(),
         adapter: adapter.into(),
         enabled: true,
+        flash: true,
     };
     vec![
         svc("gmail1", "Gmail 1", "https://mail.google.com/mail/u/0/", "personal", "google", "gmail"),

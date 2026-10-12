@@ -45,5 +45,5 @@ if (window.top === window) {
     setTimeout(loadMails, 1500);
   };
   window.__loadMails = loadMails;
-  setInterval(loadMails, 3000);
+  window.__rt.poll(loadMails);
 }

@@ -59,6 +59,6 @@ if (window.top === window) {
     }).then(loadMails, function () {});
   };
   window.__loadMails = loadMails;
-  setInterval(loadMails, 10000);
+  window.__rt.poll(loadMails, 10000);
   setTimeout(loadMails, 4000);
 }

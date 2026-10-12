@@ -4,9 +4,13 @@ function staleReaction(a) {
   var lines = a.innerText.split('\n').map(function (s) { return s.trim(); });
   var at = lines.findIndex(function (s) { return /^Unread message/i.test(s); });
   if (at < 0 || !/^Reacted\b.*\bto your message/i.test(lines.slice(at + 1).join(' '))) return false;
+  var limit = window.__rt.opt('stale', 24);
+  if (!limit) return false;
   var age = lines.filter(function (s) { return /^\d+\s*[smhdwy]$/.test(s); })[0] || '';
   var m = /^(\d+)\s*([smhdwy])$/.exec(age);
-  return !!m && (/[dwy]/.test(m[2]) || (m[2] === 'h' && parseInt(m[1], 10) >= 24));
+  if (!m) return false;
+  var hours = { s: 0, m: 0, h: 1, d: 24, w: 168, y: 8760 }[m[2]] * parseInt(m[1], 10);
+  return hours >= limit;
 }
 
 if (window.top === window) {
@@ -62,5 +66,5 @@ if (window.top === window) {
     }, 500);
   };
   window.__loadMails = loadMails;
-  setInterval(loadMails, 3000);
+  window.__rt.poll(loadMails);
 }

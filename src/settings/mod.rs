@@ -1,16 +1,18 @@
 use crate::prelude::*;
 use crate::theme::parse_color;
-use crate::ui::{ColorRow, GridItem, MonRow, PresetItem, RuleRow, SettingsWindow, TrayApp};
+use crate::ui::{ColorRow, GridItem, MonRow, PresetItem, RuleRow, SettingsWindow, SvcOptsUi, SvcRow, TrayApp};
 
 mod bar;
 mod colors;
 mod lists;
 mod profiles;
+mod svc;
 
 use bar::*;
 use colors::*;
 use lists::*;
 use profiles::*;
+use svc::*;
 
 
 thread_local! {
@@ -51,6 +53,7 @@ fn populate(ui: &SettingsWindow) {
     populate_lists(ui);
     populate_ui(ui);
     populate_profiles(ui);
+    populate_svc(ui);
 }
 
 // Re-reads the config into State and redraws every bar.
@@ -104,6 +107,7 @@ pub(crate) fn open_settings() {
     crate::theme::apply_window_theme(&ui);
     wire(&ui);
     wire_profiles(&ui);
+    wire_svc(&ui);
     let _ = ui.show();
     WIN.with(|w| *w.borrow_mut() = Some(ui));
 }

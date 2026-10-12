@@ -130,6 +130,68 @@ impl UiCfg {
     }
 }
 
+// Options for the built-in web services (see the Services settings tab).
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub(crate) struct SvcOpts {
+    // Flash a service (and its new mails) when mail arrives.
+    pub(crate) flash: bool,
+    // Seconds after a service starts during which already-present mails don't count as new.
+    pub(crate) flash_settle_s: u32,
+    // A mail list ignores hover for this long after opening.
+    pub(crate) hover_guard_ms: u32,
+    // Clicking a service lists its unread mails instead of opening it.
+    pub(crate) mail_list: bool,
+    pub(crate) mail_preview: bool,
+    pub(crate) mail_max: u32,
+    // Clicking a mail shows it in the panel next to the list instead of the full window.
+    pub(crate) open_in_panel: bool,
+    pub(crate) panel_widen: bool,
+    // Messenger: ignore reaction-only unreads older than this many hours (0 = never ignore).
+    pub(crate) stale_hours: u32,
+    // Teams: count the Activity badge as well as Chat.
+    pub(crate) teams_activity: bool,
+    // Teams: keep the hidden page on Followed threads and list its threads.
+    pub(crate) teams_threads: bool,
+    // Seconds between mail list reads (Outlook, Messenger, Teams).
+    pub(crate) poll_s: u32,
+    // Largest count a badge shows before turning into "N+".
+    pub(crate) badge_max: u32,
+    // Group that only runs in the schedule: "work", "personal" or "".
+    pub(crate) sched_group: String,
+    // Bit n = weekday n (0 = Sunday).
+    pub(crate) sched_days: u32,
+    pub(crate) sched_start: u32,
+    pub(crate) sched_end: u32,
+    // DevTools port and adapter logging; applies at next start.
+    pub(crate) dev: bool,
+}
+
+impl Default for SvcOpts {
+    fn default() -> Self {
+        SvcOpts {
+            flash: true,
+            flash_settle_s: 20,
+            hover_guard_ms: 700,
+            mail_list: true,
+            mail_preview: true,
+            mail_max: 20,
+            open_in_panel: true,
+            panel_widen: true,
+            stale_hours: 24,
+            teams_activity: true,
+            teams_threads: true,
+            poll_s: 3,
+            badge_max: 9,
+            sched_group: "work".into(),
+            sched_days: 0b0111110,
+            sched_start: 6,
+            sched_end: 17,
+            dev: false,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub(crate) struct MonitorCfg {
@@ -142,6 +204,8 @@ pub(crate) struct MonitorCfg {
     // Language button and tray icons; unset means "only on the primary monitor".
     pub(crate) show_lang: Option<bool>,
     pub(crate) show_tray: Option<bool>,
+    // Service group buttons; unset means like the tray.
+    pub(crate) show_services: Option<bool>,
 }
 
 impl MonitorCfg {
@@ -150,6 +214,9 @@ impl MonitorCfg {
     }
     pub(crate) fn tray_on(&self, primary: bool) -> bool {
         self.show_tray.unwrap_or(primary)
+    }
+    pub(crate) fn services_on(&self, primary: bool) -> bool {
+        self.show_services.unwrap_or_else(|| self.tray_on(primary))
     }
 }
 
@@ -163,6 +230,7 @@ impl Default for MonitorCfg {
             tray_left: false,
             show_lang: None,
             show_tray: None,
+            show_services: None,
         }
     }
 }
@@ -177,6 +245,8 @@ struct Config {
     theme: ThemeCfg,
     #[serde(default)]
     ui: UiCfg,
+    #[serde(default)]
+    svc: SvcOpts,
     // Per-monitor options, keyed by device name.
     #[serde(default)]
     monitors: Vec<MonitorCfg>,
@@ -208,13 +278,14 @@ struct Store {
     // Shared snapshots handed out by load_ui/load_theme; rebuilt whenever cfg changes.
     ui: std::rc::Rc<UiCfg>,
     theme: std::rc::Rc<ThemeCfg>,
+    svc: std::rc::Rc<SvcOpts>,
     // Modification time of the file as we last read or wrote it, to spot outside edits.
     stamp: Option<SystemTime>,
 }
 
 impl Store {
     fn new(cfg: Config, stamp: Option<SystemTime>) -> Self {
-        let mut s = Store { ui: Default::default(), theme: Default::default(), cfg, stamp };
+        let mut s = Store { ui: Default::default(), theme: Default::default(), svc: Default::default(), cfg, stamp };
         s.refresh();
         s
     }
@@ -222,6 +293,7 @@ impl Store {
     fn refresh(&mut self) {
         self.ui = std::rc::Rc::new(self.cfg.ui.clone());
         self.theme = std::rc::Rc::new(self.cfg.theme.clone());
+        self.svc = std::rc::Rc::new(self.cfg.svc.clone());
     }
 }
 

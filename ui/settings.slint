@@ -2,8 +2,9 @@ import { ScrollView, Palette } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { Button, CheckBox, LineEdit, SpinBox, ResetBtn, SectionTitle, Caption, Segmented, Opt } from "settings_widgets.slint";
 import { LabelPreview, StartPreview, ClockPreview, TimePreview, RadiusPreview, SpeedPreview, ColorsPreview, IconGrid, ColorPicker } from "settings_previews.slint";
-import { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp } from "settings_types.slint";
-export { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp } from "settings_types.slint";
+import { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp, SvcRow, SvcOptsUi } from "settings_types.slint";
+import { ServicesTab } from "settings_services.slint";
+export { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp, SvcRow, SvcOptsUi } from "settings_types.slint";
 
 export component SettingsWindow inherits Window {
     title: "Taskbar Settings";
@@ -50,6 +51,17 @@ export component SettingsWindow inherits Window {
     callback monitor-start(int, bool);
     callback remove-pin(int, int);
     callback open-config();
+    in property <[SvcRow]> svc-rows;
+    in-out property <SvcOptsUi> svc-opts;
+    callback svc-row-bool(int, string, bool);
+    callback svc-row-text(int, string, string);
+    callback svc-row-group(int, int);
+    callback svc-row-remove(int);
+    callback svc-add(string, string, int);
+    callback svc-opt-bool(string, bool);
+    callback svc-opt-int(string, int);
+    callback svc-opt-day(int, bool);
+    callback svc-reset();
 
     in-out property <int> icon-size: 22;
     in-out property <int> bar-height: 0;
@@ -105,7 +117,7 @@ export component SettingsWindow inherits Window {
             vertical-stretch: 0;
             background: Theme.bg;
             HorizontalLayout {
-                for name[i] in ["General", "Appearance", "Apps", "Monitors", "Bar", "Tray", "Quick settings", "Profiles"]: Rectangle {
+                for name[i] in ["General", "Appearance", "Apps", "Monitors", "Bar", "Tray", "Quick settings", "Profiles", "Services"]: Rectangle {
                     background: root.tab == i ? Theme.popup-bg : ta.has-hover ? Theme.hover : transparent;
                     Text {
                         text: name;
@@ -670,6 +682,20 @@ export component SettingsWindow inherits Window {
                 }
             }
         }
+        if root.tab == 8: ServicesTab {
+            vertical-stretch: 1;
+            rows: root.svc-rows;
+            so <=> root.svc-opts;
+            row-bool(i, k, v) => { root.svc-row-bool(i, k, v); }
+            row-text(i, k, v) => { root.svc-row-text(i, k, v); }
+            row-group(i, g) => { root.svc-row-group(i, g); }
+            row-remove(i) => { root.svc-row-remove(i); }
+            add(n, u, g) => { root.svc-add(n, u, g); }
+            opt-bool(k, v) => { root.svc-opt-bool(k, v); }
+            opt-int(k, v) => { root.svc-opt-int(k, v); }
+            opt-day(d, v) => { root.svc-opt-day(d, v); }
+            reset => { root.svc-reset(); }
+        }
         if root.tab == 3: Rectangle {
             vertical-stretch: 1;
             ScrollView {
@@ -760,6 +786,16 @@ export component SettingsWindow inherits Window {
                                 options: ["Shown", "Hidden"];
                                 current: m.show-tray ? 0 : 1;
                                 selected(i) => { root.monitor-part(mi, "tray", i == 0); }
+                            }
+                        }
+                        VerticalLayout {
+                            spacing: 8px;
+                            Text { color: Theme.text; text: "Service buttons (Gmail, Outlook, ...)"; }
+                            Segmented {
+                                width: 240px;
+                                options: ["Shown", "Hidden"];
+                                current: m.show-services ? 0 : 1;
+                                selected(i) => { root.monitor-part(mi, "services", i == 0); }
                             }
                         }
                         VerticalLayout {

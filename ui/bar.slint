@@ -233,16 +233,16 @@ export component GroupIcon inherits Rectangle {
     }
 }
 
-// Count pill: shows 1-9, then 9+.
+// Count pill: shows the count up to Theme.badge-max, then "N+".
 export component CountBadge inherits Rectangle {
     in property <int> count;
     visible: root.count > 0;
     height: 16px;
-    width: root.count > 9 ? 23px : 16px;
+    width: root.count > Theme.badge-max ? 6px + 8px * (Theme.badge-max >= 100 ? 4 : Theme.badge-max >= 10 ? 3 : 2) : root.count > 99 ? 30px : root.count > 9 ? 22px : 16px;
     border-radius: 8px;
     background: Theme.accent;
     Text {
-        text: root.count > 9 ? "9+" : "\{root.count}";
+        text: root.count > Theme.badge-max ? "\{Theme.badge-max}+" : "\{root.count}";
         color: #ffffff;
         font-size: 12px;
         font-weight: 700;

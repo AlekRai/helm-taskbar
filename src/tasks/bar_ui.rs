@@ -14,7 +14,7 @@ pub(super) fn apply_edges(ui: &BarWindow, monitor: isize, mon_cfg: &MonitorCfg) 
     crate::tray::sync_bar_tray(ui, tray_on);
     let clock_reserve = (if mon_cfg.show_clock { clock_w } else { 8.0 }) + if lang_on { SYS_ICONS_WIDTH } else { 0.0 };
     let tray_w = if tray_on { clock_reserve + visible_count() as f32 * TRAY_BTN } else { clock_reserve };
-    let reserve = tray_w + crate::services::sync_bar(ui, tray_on);
+    let reserve = tray_w + crate::services::sync_bar(ui, mon_cfg.services_on(primary));
     ui.set_show_clock(mon_cfg.show_clock);
     ui.set_side_left(mon_cfg.tray_left);
     ui.set_show_sys(lang_on);

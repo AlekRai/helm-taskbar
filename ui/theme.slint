@@ -1,6 +1,8 @@
 export global Theme {
     in-out property <duration> anim: 120ms;
     in-out property <bool> repaint;
+    // Largest count a service badge shows before turning into "N+".
+    in-out property <int> badge-max: 9;
     in-out property <float> popup-scale: 1.0;
     in-out property <length> app-icon: 22px;
     in-out property <length> button-radius: 4px;

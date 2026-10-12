@@ -32,9 +32,40 @@ export struct MonRow {
     show-clock: bool,
     show-lang: bool,
     show-tray: bool,
+    show-services: bool,
     tray-left: bool,
     show-start: bool,
     pins: [GridItem],
+}
+
+export struct SvcRow {
+    id: string,
+    name: string,
+    url: string,
+    group: int,
+    enabled: bool,
+    flash: bool,
+}
+
+export struct SvcOptsUi {
+    flash: bool,
+    settle: int,
+    guard: int,
+    list: bool,
+    preview: bool,
+    max: int,
+    panel: bool,
+    widen: bool,
+    stale: int,
+    activity: bool,
+    threads: bool,
+    poll: int,
+    badge: int,
+    sched-group: int,
+    days: int,
+    start: int,
+    end: int,
+    dev: bool,
 }
 
 export struct TrayApp {

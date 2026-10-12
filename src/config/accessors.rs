@@ -85,6 +85,18 @@ pub(crate) fn load_services() -> Vec<webservices::ServiceCfg> {
     with_store(|st| st.cfg.services.clone().unwrap_or_else(webservices::default_services))
 }
 
+pub(crate) fn save_services(list: Vec<webservices::ServiceCfg>) {
+    mutate(|c| c.services = Some(list));
+}
+
+pub(crate) fn load_svc() -> std::rc::Rc<SvcOpts> {
+    with_store(|st| st.svc.clone())
+}
+
+pub(crate) fn update_svc(f: impl FnOnce(&mut SvcOpts)) {
+    mutate(|c| f(&mut c.svc));
+}
+
 pub(crate) fn load_theme() -> std::rc::Rc<ThemeCfg> {
     with_store(|st| st.theme.clone())
 }

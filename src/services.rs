@@ -9,37 +9,57 @@ const GROUPS: [(&str, &str); 2] = [("personal", "Personal"), ("work", "Work")];
 // Starts every enabled service with a hidden window.
 pub(crate) fn start() {
     let Some(base) = config_dir() else { return };
-    webservices::init(base, false, log);
-    WORK_ON.with(|w| w.set(group_visible("work")));
+    webservices::init(base, load_svc().dev, log);
+    push_opts();
+    ACTIVE.with(|a| a.set(GROUPS.map(|(k, _)| group_visible(k))));
     start_active();
 }
 
 thread_local! {
-    static WORK_ON: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+    // Whether each group was in its active hours at the last tick.
+    static ACTIVE: std::cell::Cell<[bool; 2]> = const { std::cell::Cell::new([true; 2]) };
 }
 
-// Launches the services whose group is currently active (work only runs in work hours).
-fn start_active() {
+// Hands the adapter-facing options to the web pages.
+fn push_opts() {
+    let o = load_svc();
+    webservices::set_opts(webservices::Opts {
+        stale_hours: o.stale_hours,
+        teams_activity: o.teams_activity,
+        teams_threads: o.teams_threads,
+        poll_ms: o.poll_s.clamp(1, 120) * 1000,
+        panel_widen: o.panel_widen,
+    });
+}
+
+// Launches the services whose group is currently active (a scheduled group only runs in its hours).
+pub(crate) fn start_active() {
     let cfgs: Vec<_> = load_services().into_iter().filter(|c| group_visible(&c.group)).collect();
     webservices::start(&cfgs, false);
 }
 
-// Called every tick: the work group is closed completely (no processes) outside its hours and reopened in them.
+// Called every tick: a scheduled group is closed completely (no processes) outside its hours and reopened in them.
 pub(crate) fn schedule() {
-    let on = group_visible("work");
-    if WORK_ON.with(|w| w.replace(on)) == on {
-        return;
-    }
-    if on {
-        start_active();
-    } else {
-        webservices::stop_group("work");
+    push_opts();
+    let now = GROUPS.map(|(k, _)| group_visible(k));
+    let before = ACTIVE.with(|a| a.replace(now));
+    for (i, (key, _)) in GROUPS.iter().enumerate() {
+        if before[i] == now[i] {
+            continue;
+        }
+        if now[i] {
+            start_active();
+        } else {
+            webservices::stop_group(key);
+        }
     }
 }
 
 // Services with a mail list flash while any of their mails does; others use their attention flag.
 fn flash_of(s: &webservices::Status) -> bool {
-    if s.mail.is_empty() {
+    if !s.flash || !load_svc().flash {
+        false
+    } else if s.mail.is_empty() {
         s.attention
     } else {
         FLASH.with(|f| s.mail.iter().any(|m| f.borrow().contains(&m.url)))
@@ -71,13 +91,17 @@ fn group_rows<'a>(all: &'a [webservices::Status], key: &str) -> Vec<&'a webservi
     all.iter().filter(|s| s.group == key).collect()
 }
 
-// The work group only shows Monday to Friday, 06:00 to 17:00.
-fn group_visible(key: &str) -> bool {
-    if key != "work" {
+// The scheduled group (the Work group by default) only shows on its days and hours.
+pub(crate) fn group_visible(key: &str) -> bool {
+    let o = load_svc();
+    if key != o.sched_group {
         return true;
     }
     let t = unsafe { GetLocalTime() };
-    (1..=5).contains(&t.wDayOfWeek) && (6..17).contains(&t.wHour)
+    let (from, to) = (o.sched_start, o.sched_end);
+    let hour = t.wHour as u32;
+    let in_hours = if from <= to { (from..to).contains(&hour) } else { hour >= from || hour < to };
+    o.sched_days >> t.wDayOfWeek & 1 == 1 && in_hours
 }
 
 // One button per group that has at least one running service.
@@ -145,16 +169,15 @@ thread_local! {
 }
 
 // Mails already there at start-up (first feed reads) don't count as new.
-const SETTLE: std::time::Duration = std::time::Duration::from_secs(20);
 
 // Called every tick: marks mails that appeared since start-up as flashing.
 pub(crate) fn track_mail() {
+    let settle = std::time::Duration::from_secs(load_svc().flash_settle_s as u64);
     for s in webservices::status() {
-        let settled = FIRST.with(|f| f.borrow_mut().entry(s.id.clone()).or_insert_with(std::time::Instant::now).elapsed() > SETTLE);
+        let settled = FIRST.with(|f| f.borrow_mut().entry(s.id.clone()).or_insert_with(std::time::Instant::now).elapsed() > settle);
         for m in &s.mail {
             let fresh = SEEN.with(|seen| seen.borrow_mut().insert(m.url.clone()));
             if fresh && settled {
-                crate::util::log(&format!("mail flash: {} {}", s.id, m.title));
                 FLASH.with(|f| f.borrow_mut().insert(m.url.clone()));
             }
         }
@@ -182,7 +205,8 @@ pub(crate) fn mail_rows(id: &str, scale: f32) -> Vec<(SvcItem, Option<String>)> 
     let base = row_item(0, s, scale);
     let mut rows = Vec::new();
     MARKED.with(|m| m.borrow_mut().retain(|_, t| t.elapsed() < MARKED_HIDE));
-    for m in s.mail.iter().filter(|m| !MARKED.with(|h| h.borrow().contains_key(&m.url))) {
+    let max = load_svc().mail_max.max(1) as usize;
+    for m in s.mail.iter().filter(|m| !MARKED.with(|h| h.borrow().contains_key(&m.url))).take(max) {
         let name = if m.from.is_empty() || m.title.is_empty() { if m.title.is_empty() { m.from.clone() } else { m.title.clone() } } else { format!("{} \u{2014} {}", m.from, m.title) };
         rows.push((SvcItem { name: name.into(), count: 0, flashing: FLASH.with(|f| f.borrow().contains(&m.url)), meeting: false, ..base.clone() }, Some(m.url.clone())));
     }
@@ -191,6 +215,9 @@ pub(crate) fn mail_rows(id: &str, scale: f32) -> Vec<(SvcItem, Option<String>)> 
 
 // Tooltip for the n-th listed mail: sender, subject and a preview of the body.
 pub(crate) fn mail_tip(id: &str, index: usize) -> String {
+    if !load_svc().mail_preview {
+        return String::new();
+    }
     let Some(url) = mail_rows(id, 1.0).get(index).and_then(|r| r.1.clone()) else { return String::new() };
     let all = webservices::status();
     let Some(m) = all.iter().find(|s| s.id == id).and_then(|s| s.mail.iter().find(|m| m.url == url)) else { return String::new() };

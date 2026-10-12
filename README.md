@@ -13,7 +13,8 @@ runs and restored on quit (a watchdog process restores them if it crashes).
 | `src/tray/` | own `Shell_TrayWnd`, tray icon model, overflow flyout |
 | `src/popup/`, `menu.rs`, `calendar.rs`, `start/` | popup windows, context menus, calendar, Start launcher |
 | `src/quick/` | quick settings: audio + mixer, Wi-Fi, Bluetooth, keyboard language (`lists.rs` drop-down rows, `wiring.rs` callbacks) |
-| `src/settings/` | Settings window wiring (themes, bar, tray, monitors, profiles) |
+| `src/settings/` | Settings window wiring (themes, bar, tray, monitors, profiles, services in `svc.rs`) |
+| `src/services.rs`, `webservices/` | built-in web services (Gmail, Outlook, Messenger, Teams) in WebView2: bar groups, badges, flashing, mail lists/panel, schedule; per-site adapters in `webservices/src/adapters/*.js` read run-time options from `window.__opts` |
 | `src/config/` | `config.toml`, live reload, profiles |
 | `src/theme.rs` | pushes theme values to every Slint window |
 | `ui/*.slint` | Slint sources; `settings*.slint` and `quick*.slint` split into widgets, previews and the window |

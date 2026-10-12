@@ -53,7 +53,44 @@ struct Settings {
     log: fn(&str),
 }
 
+// Settings the adapters read at run time (as `window.__opts`).
+#[derive(Clone, PartialEq, Debug)]
+pub struct Opts {
+    pub stale_hours: u32,
+    pub teams_activity: bool,
+    pub teams_threads: bool,
+    pub poll_ms: u32,
+    pub panel_widen: bool,
+}
+
+impl Default for Opts {
+    fn default() -> Self {
+        Opts { stale_hours: 24, teams_activity: true, teams_threads: true, poll_ms: 3000, panel_widen: true }
+    }
+}
+
+fn opts_script(o: &Opts) -> String {
+    format!(
+        "window.__opts = {{stale: {}, activity: {}, threads: {}, poll: {}}};",
+        o.stale_hours, o.teams_activity, o.teams_threads, o.poll_ms
+    )
+}
+
+// Applies new options to every running page (adapters read them on each pass).
+pub fn set_opts(o: Opts) {
+    if OPTS.with(|x| *x.borrow() == o) {
+        return;
+    }
+    let script = opts_script(&o);
+    OPTS.with(|x| *x.borrow_mut() = o);
+    let ids: Vec<String> = SVCS.with(|s| s.borrow().iter().map(|v| v.cfg.id.clone()).collect());
+    for id in ids {
+        run_script(&id, &script);
+    }
+}
+
 thread_local! {
+    static OPTS: RefCell<Opts> = RefCell::new(Opts::default());
     static SVCS: RefCell<Vec<Svc>> = const { RefCell::new(Vec::new()) };
     static ENVS: RefCell<HashMap<String, ICoreWebView2Environment>> = RefCell::new(HashMap::new());
     static PENDING: RefCell<HashMap<String, Vec<(ServiceCfg, HWND)>>> = RefCell::new(HashMap::new());
@@ -70,6 +107,8 @@ pub struct Status {
     pub unread: u32,
     pub meeting: bool,
     pub attention: bool,
+    // Whether new mail makes this service flash.
+    pub flash: bool,
     // The window's current icon (an HICON, 0 until the page's favicon arrives).
     pub icon: isize,
     pub mail: Vec<MailItem>,
@@ -120,6 +159,22 @@ pub fn stop_group(group: &str) {
     for v in gone {
         ENVS.with(|e| e.borrow_mut().remove(&v.cfg.profile));
         PENDING.with(|p| p.borrow_mut().remove(&v.cfg.profile));
+        unsafe {
+            if let Some(c) = &v.controller {
+                let _ = c.Close();
+            }
+            let _ = DestroyWindow(v.hwnd);
+        }
+    }
+}
+
+// Closes one service's window and view; its profile stays loaded for the others that share it.
+pub fn stop_service(id: &str) {
+    let gone = SVCS.with(|s| {
+        let mut s = s.borrow_mut();
+        s.iter().position(|v| v.cfg.id == id).map(|i| s.remove(i))
+    });
+    if let Some(v) = gone {
         unsafe {
             if let Some(c) = &v.controller {
                 let _ = c.Close();
@@ -299,6 +354,7 @@ pub fn status() -> Vec<Status> {
                 unread: v.unread,
                 meeting: v.meeting,
                 attention: v.attention,
+                flash: v.cfg.flash,
                 icon: unsafe {
                     SendMessageW(v.hwnd, WM_GETICON, Some(WPARAM(ICON_BIG as usize)), Some(LPARAM(0))).0
                 },
@@ -447,7 +503,8 @@ fn adapter_script(cfg: &ServiceCfg) -> String {
         }
         .to_string()
     });
-    format!("{PRELUDE}\n{body}")
+    let opts = OPTS.with(|o| opts_script(&o.borrow()));
+    format!("{opts}\n{PRELUDE}\n{body}")
 }
 
 fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
@@ -633,7 +690,7 @@ fn on_message(id: &str, msg: &str) {
         return;
     }
     if a == "panelw" {
-        if let (Ok(w), Some(hwnd)) = (b.parse::<i32>(), panel_hwnd()) {
+        if let (true, Ok(w), Some(hwnd)) = (OPTS.with(|o| o.borrow().panel_widen), b.parse::<i32>(), panel_hwnd()) {
             grow_panel(hwnd, w);
         }
         return;

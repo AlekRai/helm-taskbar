@@ -121,6 +121,7 @@ pub(super) fn populate_lists(ui: &SettingsWindow) {
                 show_clock: c.show_clock,
                 show_lang: c.lang_on(d == primary_dev),
                 show_tray: c.tray_on(d == primary_dev),
+                show_services: c.services_on(d == primary_dev),
                 tray_left: c.tray_left,
                 show_start: c.show_start,
                 pins: ModelRc::new(VecModel::from(pins)),
@@ -207,6 +208,7 @@ pub(super) fn wire_monitors(ui: &SettingsWindow) {
             edit_monitor(&w, i, |c| match part.as_str() {
                 "lang" => c.show_lang = Some(on),
                 "tray" => c.show_tray = Some(on),
+                "services" => c.show_services = Some(on),
                 _ => {}
             })
         }
