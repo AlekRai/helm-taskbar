@@ -35,6 +35,15 @@ struct Svc {
     meeting: bool,
     attention: bool,
     reported: bool,
+    mail: Vec<MailItem>,
+}
+
+// One unread mail as shown in the bar's mail list.
+#[derive(Clone, Debug)]
+pub struct MailItem {
+    pub from: String,
+    pub title: String,
+    pub url: String,
 }
 
 struct Settings {
@@ -60,6 +69,7 @@ pub struct Status {
     pub attention: bool,
     // The window's current icon (an HICON, 0 until the page's favicon arrives).
     pub icon: isize,
+    pub mail: Vec<MailItem>,
 }
 
 fn log(msg: &str) {
@@ -108,6 +118,20 @@ pub fn open(id: &str) {
     }
 }
 
+// Shows a service window and loads `url` in it (e.g. a specific mail).
+pub fn open_url(id: &str, url: &str) {
+    let web = SVCS.with(|s| {
+        s.borrow().iter().find(|v| v.cfg.id == id).and_then(|v| v.controller.as_ref().and_then(|c| unsafe { c.CoreWebView2().ok() }))
+    });
+    if let Some(web) = web {
+        let u = wide(url);
+        unsafe {
+            let _ = web.Navigate(PCWSTR(u.as_ptr()));
+        }
+    }
+    open(id);
+}
+
 pub fn status() -> Vec<Status> {
     SVCS.with(|s| {
         s.borrow()
@@ -122,6 +146,7 @@ pub fn status() -> Vec<Status> {
                 icon: unsafe {
                     SendMessageW(v.hwnd, WM_GETICON, Some(WPARAM(ICON_BIG as usize)), Some(LPARAM(0))).0
                 },
+                mail: v.mail.clone(),
             })
             .collect()
     })
@@ -141,6 +166,7 @@ fn launch(cfg: &ServiceCfg, show: bool) {
             meeting: false,
             attention: false,
             reported: false,
+            mail: Vec::new(),
         })
     });
     start_webview(cfg.clone(), hwnd);
@@ -414,6 +440,21 @@ fn on_message(id: &str, msg: &str) {
     let Some((a, b)) = msg.split_once('|') else { return };
     if a == "log" {
         log(&format!("[{id}] {b}"));
+        return;
+    }
+    if a == "items" {
+        let mail = b
+            .lines()
+            .filter_map(|l| {
+                let mut p = l.split('\t');
+                Some(MailItem { from: p.next()?.into(), title: p.next()?.into(), url: p.next()?.into() })
+            })
+            .collect();
+        SVCS.with(|s| {
+            if let Some(v) = s.borrow_mut().iter_mut().find(|v| v.cfg.id == id) {
+                v.mail = mail;
+            }
+        });
         return;
     }
     if a == "name" {

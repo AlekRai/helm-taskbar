@@ -44,6 +44,8 @@ struct Track {
     fly_mon: Cell<isize>,
     // What the flyout lists: TRAY_KIND for overflow tray icons, else a service group index.
     fly_kind: Cell<i32>,
+    // Service whose unread mail list the flyout shows (when fly_kind is MAIL_KIND).
+    mail_id: RefCell<String>,
     quick_mon: Cell<isize>,
     keep_fly: Cell<bool>,
 }
@@ -60,6 +62,7 @@ thread_local! {
 
 const MENU_WIDTH: f32 = 220.0;
 const TRAY_KIND: i32 = -1;
+const MAIL_KIND: i32 = -2;
 const CAL_HEIGHT_FULL: f32 = 420.0;
 
 // Calendar plus its 1px divider; zero when the calendar is turned off.
