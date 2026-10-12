@@ -1,0 +1,198 @@
+import { Theme } from "theme.slint";
+
+export component Button inherits Rectangle {
+    in property <string> text;
+    callback clicked;
+    min-height: 32px;
+    min-width: lbl.preferred-width + 28px;
+    border-radius: Theme.button-radius + 2px;
+    border-width: 1px;
+    border-color: Theme.popup-border;
+    background: ta.pressed ? Theme.pressed : ta.has-hover ? Theme.selected : Theme.hover;
+    animate background { duration: 100ms; }
+    lbl := Text { text: root.text; color: Theme.text; horizontal-alignment: center; vertical-alignment: center; }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+export component CheckBox inherits Rectangle {
+    in property <string> text;
+    in-out property <bool> checked;
+    callback toggled;
+    min-height: 24px;
+    HorizontalLayout {
+        spacing: 10px;
+        alignment: start;
+        Rectangle {
+            width: 20px;
+            height: 20px;
+            y: 2px;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: root.checked ? Theme.accent : Theme.text-dim;
+            background: root.checked ? Theme.accent : Theme.hover;
+            Path {
+                visible: root.checked;
+                width: 12px;
+                height: 12px;
+                commands: "M 1 6 L 5 10 L 11 2";
+                stroke: Theme.bg;
+                stroke-width: 2px;
+            }
+        }
+        Text { text: root.text; color: Theme.text; vertical-alignment: center; }
+    }
+    ta := TouchArea { clicked => { root.checked = !root.checked; root.toggled(); } }
+}
+
+export component LineEdit inherits Rectangle {
+    in-out property <string> text <=> ti.text;
+    in property <string> placeholder-text;
+    callback edited(string);
+    min-height: 32px;
+    border-radius: Theme.button-radius + 2px;
+    border-width: 1px;
+    border-color: ti.has-focus ? Theme.accent : Theme.popup-border;
+    background: Theme.hover;
+    clip: true;
+    Text {
+        x: 10px;
+        text: root.placeholder-text;
+        color: Theme.text-dim;
+        vertical-alignment: center;
+        visible: ti.text == "";
+    }
+    ti := TextInput {
+        x: 10px;
+        width: parent.width - 20px;
+        height: parent.height;
+        vertical-alignment: center;
+        color: Theme.text;
+        selection-background-color: Theme.accent;
+        selection-foreground-color: Theme.bg;
+        single-line: true;
+        edited => { root.edited(self.text); }
+    }
+}
+
+export component SpinBox inherits Rectangle {
+    in property <int> minimum;
+    in property <int> maximum: 100;
+    in property <int> increment: 1;
+    in-out property <int> value;
+    callback edited(int);
+    min-height: 32px;
+    min-width: 150px;
+    border-radius: Theme.button-radius + 2px;
+    border-width: 1px;
+    border-color: Theme.popup-border;
+    background: Theme.hover;
+    changed value => { num.text = root.value; }
+    function step(d: int) {
+        root.value = max(root.minimum, min(root.maximum, root.value + d * root.increment));
+        root.edited(root.value);
+    }
+    TouchArea {
+        scroll-event(e) => {
+            root.step(e.delta-y > 0 ? 1 : -1);
+            accept
+        }
+    }
+    HorizontalLayout {
+        Rectangle {
+            width: 36px;
+            background: minus.has-hover ? Theme.selected : transparent;
+            border-radius: Theme.button-radius + 2px;
+            Text { text: "−"; color: Theme.text; font-size: 16px; horizontal-alignment: center; vertical-alignment: center; }
+            minus := TouchArea { clicked => { root.step(-1); } }
+        }
+        num := TextInput {
+            text: root.value;
+            color: Theme.text;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            single-line: true;
+            input-type: number;
+            selection-background-color: Theme.accent;
+            selection-foreground-color: Theme.bg;
+            edited => {
+                if (self.text != "") {
+                    root.value = max(root.minimum, min(root.maximum, self.text.to-float()));
+                    root.edited(root.value);
+                }
+            }
+            accepted => { self.text = root.value; }
+            changed has-focus => { if (!self.has-focus) { self.text = root.value; } }
+        }
+        Rectangle {
+            width: 36px;
+            background: plus.has-hover ? Theme.selected : transparent;
+            border-radius: Theme.button-radius + 2px;
+            Text { text: "+"; color: Theme.text; font-size: 16px; horizontal-alignment: center; vertical-alignment: center; }
+            plus := TouchArea { clicked => { root.step(1); } }
+        }
+    }
+}
+
+export component ResetBtn inherits VerticalLayout {
+    callback clicked;
+    width: 46px;
+    alignment: center;
+    Rectangle {
+        height: 22px;
+        border-radius: 4px;
+        background: ta.has-hover ? Theme.selected : Theme.hover;
+        Text { text: "Reset"; color: Theme.text; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+        ta := TouchArea { clicked => { root.clicked(); } }
+    }
+}
+
+export component SectionTitle inherits Text {
+    color: Theme.text;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+export component Caption inherits Text {
+    color: Theme.text-dim;
+    wrap: word-wrap;
+}
+
+// Two-state choice where both options stay visible.
+export component Segmented inherits Rectangle {
+    in property <[string]> options;
+    in property <int> current;
+    in property <length> pad: 28px;
+    callback selected(int);
+    height: 32px;
+    min-width: 220px;
+    border-radius: 6px;
+    background: Theme.hover;
+    border-width: 1px;
+    border-color: Theme.popup-border;
+    HorizontalLayout {
+        padding: 3px;
+        spacing: 4px;
+        for o[i] in root.options: Rectangle {
+            min-width: label.preferred-width + root.pad;
+            border-radius: 5px;
+            background: i == root.current ? Theme.accent : ta.has-hover ? Theme.selected : transparent;
+            label := Text {
+                text: o;
+                color: i == root.current ? Theme.bg : Theme.text;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            ta := TouchArea { clicked => { root.selected(i); } }
+        }
+    }
+}
+
+export component Opt inherits VerticalLayout {
+    in property <string> title;
+    in property <string> hint;
+    spacing: 6px;
+    Text { color: Theme.text; text: root.title; }
+    @children
+    if root.hint != "": Caption { text: root.hint; }
+}
+

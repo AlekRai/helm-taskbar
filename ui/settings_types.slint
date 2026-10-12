@@ -1,0 +1,46 @@
+export struct ColorRow {
+    key: string,
+    label: string,
+    value: string,
+    swatch: color,
+    modified: bool,
+}
+
+export struct PresetItem {
+    name: string,
+    bar: color,
+    accent: color,
+    text: color,
+}
+
+export struct GridItem {
+    icon: image,
+    tip: string,
+}
+
+export struct RuleRow {
+    exe: string,
+    title: string,
+    icon-name: string,
+    app-icon: image,
+    icon: image,
+}
+
+export struct MonRow {
+    title: string,
+    show-labels: bool,
+    show-clock: bool,
+    show-lang: bool,
+    show-tray: bool,
+    tray-left: bool,
+    show-start: bool,
+    pins: [GridItem],
+}
+
+export struct TrayApp {
+    exe: string,
+    icon: image,
+    overflow: bool,
+}
+
+// Label, SpinBox and a caption on one row.

@@ -1,0 +1,389 @@
+import { Theme } from "theme.slint";
+import { Button, LineEdit, CheckBox, SpinBox, Segmented, Caption, SectionTitle } from "settings_widgets.slint";
+import { ColorRow, GridItem } from "settings_types.slint";
+
+export component PreviewBox inherits Rectangle {
+    width: 220px;
+    height: 44px;
+    background: Theme.bg;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: Theme.popup-border;
+    clip: true;
+}
+
+// Window button looping between "icon + label" and "icon only".
+export component LabelPreview inherits PreviewBox {
+    property <bool> expanded: true;
+    Timer {
+        interval: 1600ms;
+        running: true;
+        triggered => { root.expanded = !root.expanded; }
+    }
+    Rectangle {
+        x: 12px;
+        y: 5px;
+        height: 34px;
+        width: root.expanded ? 150px : 40px;
+        border-radius: 4px;
+        background: Theme.selected;
+        clip: true;
+        animate width { duration: 300ms; easing: ease-in-out; }
+        Rectangle { x: 11px; y: 8px; width: 18px; height: 18px; border-radius: 4px; background: Theme.accent; }
+        Text {
+            x: 38px;
+            text: "Window title";
+            color: Theme.text;
+            font-size: 13px;
+            vertical-alignment: center;
+            opacity: root.expanded ? 1 : 0;
+            animate opacity { duration: 300ms; }
+        }
+    }
+}
+
+// Start button appears and disappears, shifting the apps.
+export component StartPreview inherits PreviewBox {
+    property <bool> shown: true;
+    Timer {
+        interval: 1600ms;
+        running: true;
+        triggered => { root.shown = !root.shown; }
+    }
+    Rectangle {
+        x: root.shown ? 12px : -30px;
+        y: 5px;
+        width: 34px;
+        height: 34px;
+        opacity: root.shown ? 1 : 0;
+        animate x, opacity { duration: 300ms; easing: ease-in-out; }
+        for k in 4: Rectangle {
+            width: 9px;
+            height: 9px;
+            x: 7px + mod(k, 2) * 11px;
+            y: 7px + floor(k / 2) * 11px;
+            border-radius: 1.5px;
+            background: Theme.accent;
+        }
+    }
+    for i in 2: Rectangle {
+        x: (root.shown ? 54px : 12px) + i * 44px;
+        y: 5px;
+        width: 40px;
+        height: 34px;
+        border-radius: 4px;
+        background: i == 0 ? Theme.selected : Theme.hover;
+        animate x { duration: 300ms; easing: ease-in-out; }
+        Rectangle { width: 18px; height: 18px; border-radius: 4px; background: Theme.text-dim; }
+    }
+}
+
+// Tray icons shift right when the clock disappears.
+export component ClockPreview inherits PreviewBox {
+    in property <bool> clock-24h: true;
+    property <bool> shown: true;
+    Timer {
+        interval: 1600ms;
+        running: true;
+        triggered => { root.shown = !root.shown; }
+    }
+    for i in 3: Rectangle {
+        y: 15px;
+        width: 14px;
+        height: 14px;
+        border-radius: 7px;
+        background: Theme.text-dim;
+        x: root.width - (root.shown ? 62px : 10px) - (3 - i) * 22px;
+        animate x { duration: 300ms; easing: ease-in-out; }
+    }
+    Text {
+        x: root.width - 54px;
+        text: root.clock-24h ? "21:38" : "9:38 PM";
+        color: Theme.text;
+        font-size: 13px;
+        vertical-alignment: center;
+        opacity: root.shown ? 1 : 0;
+        animate opacity { duration: 300ms; }
+    }
+}
+
+export component TimePreview inherits PreviewBox {
+    in property <bool> clock-24h: true;
+    Text {
+        text: root.clock-24h ? "21:38" : "9:38 PM";
+        color: Theme.text;
+        font-size: 18px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component RadiusPreview inherits PreviewBox {
+    in property <int> radius;
+    Rectangle {
+        width: 120px;
+        height: 30px;
+        border-radius: root.radius * 1px;
+        background: Theme.accent;
+        Text { text: "Button"; color: Theme.bg; horizontal-alignment: center; vertical-alignment: center; }
+    }
+}
+
+export component SpeedPreview inherits PreviewBox {
+    in property <int> ms;
+    property <bool> right;
+    Timer {
+        interval: 1000ms;
+        running: true;
+        triggered => { root.right = !root.right; }
+    }
+    Rectangle {
+        y: 10px;
+        width: 24px;
+        height: 24px;
+        border-radius: 5px;
+        background: Theme.accent;
+        x: root.right ? root.width - 36px : 12px;
+        animate x { duration: root.ms * 1ms; easing: ease-in-out; }
+    }
+}
+
+export component ColorsPreview inherits Rectangle {
+    in property <[ColorRow]> colors;
+    function c(i: int, fallback: color) -> color {
+        return root.colors.length > i ? root.colors[i].swatch : fallback;
+    }
+    height: 120px;
+    background: #101014;
+    border-radius: 6px;
+    clip: true;
+    // Popup card above the bar.
+    Rectangle {
+        x: 16px;
+        y: 10px;
+        width: 150px;
+        height: 54px;
+        border-radius: 6px;
+        background: root.c(9, #202024);
+        border-width: 1px;
+        border-color: root.c(10, #3a3a42);
+        Text { x: 12px; y: 8px; text: "Popup"; color: root.c(7, #f0f0f0); font-size: 13px; }
+        Text { x: 12px; y: 28px; text: "Dimmed text"; color: root.c(8, #7c7c88); font-size: 12px; }
+    }
+    Rectangle {
+        y: parent.height - 44px;
+        height: 44px;
+        background: root.c(1, #18181c);
+        HorizontalLayout {
+            padding: 5px;
+            spacing: 6px;
+            alignment: start;
+            Rectangle { width: 130px; border-radius: 4px; background: root.c(4, #2c2c34);
+                Rectangle { x: 10px; y: 9px; width: 18px; height: 18px; border-radius: 4px; background: root.c(0, #4ca0ff); }
+                Text { x: 36px; text: "Active"; color: root.c(7, #f0f0f0); font-size: 13px; vertical-alignment: center; }
+                Rectangle { y: parent.height - 3px; x: 55px; width: 20px; height: 3px; background: root.c(6, #6e6e7a); }
+            }
+            Rectangle { width: 130px; border-radius: 4px; background: root.c(2, #24242a);
+                Rectangle { x: 10px; y: 9px; width: 18px; height: 18px; border-radius: 4px; background: root.c(6, #6e6e7a); }
+                Text { x: 36px; text: "Hovered"; color: root.c(8, #7c7c88); font-size: 13px; vertical-alignment: center; }
+            }
+            Rectangle { width: 130px; border-radius: 4px; background: root.c(3, #1e1e23);
+                Rectangle { x: 10px; y: 9px; width: 18px; height: 18px; border-radius: 4px; background: root.c(6, #6e6e7a); }
+                Text { x: 36px; text: "Pressed"; color: root.c(8, #7c7c88); font-size: 13px; vertical-alignment: center; }
+            }
+        }
+    }
+}
+
+// Compact grid of icons with a hover tooltip and a small remove button.
+export component IconGrid inherits Rectangle {
+    in property <[GridItem]> items;
+    callback remove(int);
+    property <int> cols: max(1, floor(root.width / 56px));
+    property <length> grid-h: ceil(root.items.length / root.cols) * 56px;
+    height: root.items.length == 0 ? 0px : root.grid-h + 22px;
+    for it[i] in root.items: Rectangle {
+        x: mod(i, root.cols) * 56px;
+        y: floor(i / root.cols) * 56px;
+        width: 52px;
+        height: 52px;
+        z: cell-ta.has-hover ? 5 : 0;
+        border-radius: 6px;
+        background: cell-ta.has-hover ? Theme.selected : Theme.hover;
+        Image {
+            source: it.icon;
+            width: 32px;
+            height: 32px;
+            image-fit: contain;
+        }
+        cell-ta := TouchArea { }
+        Rectangle {
+            x: parent.width - 17px;
+            y: 3px;
+            width: 14px;
+            height: 14px;
+            border-radius: 7px;
+            background: x-ta.has-hover ? #d04848 : Theme.popup-border;
+            Text { text: "×"; color: x-ta.has-hover ? #ffffff : Theme.text; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+            x-ta := TouchArea { clicked => { root.remove(i); } }
+        }
+        if cell-ta.has-hover: Text {
+            x: -parent.x;
+            y: root.grid-h + 2px - parent.y;
+            width: root.width;
+            text: it.tip;
+            color: Theme.text-dim;
+            font-size: 12px;
+            overflow: elide;
+        }
+    }
+}
+
+export component ColorPicker inherits Rectangle {
+    in property <color> value;
+    in property <string> text;
+    callback picked(color);
+    callback text-edited(string);
+    property <float> h;
+    property <float> s;
+    property <float> v;
+    property <float> a: 1;
+    function emit() {
+        root.picked(Colors.hsv(root.h, root.s, root.v, root.a));
+    }
+    width: 30px;
+    height: 22px;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: Theme.text-dim;
+    background: root.value;
+    TouchArea {
+        clicked => {
+            root.h = root.value.to-hsv().hue;
+            root.s = root.value.to-hsv().saturation;
+            root.v = root.value.to-hsv().value;
+            root.a = root.value.to-hsv().alpha;
+            pop.show();
+        }
+    }
+    pop := PopupWindow {
+        close-policy: close-on-click-outside;
+        x: 0px;
+        y: root.absolute-position.y > 380px ? -self.height - 4px : root.height + 4px;
+        width: 236px;
+        height: 286px;
+        Rectangle { background: Theme.popup-bg; border-radius: 8px; border-width: 1px; border-color: Theme.popup-border; }
+        Rectangle {
+            x: 12px;
+            y: 12px;
+            width: 212px;
+            height: 150px;
+            border-radius: 4px;
+            clip: true;
+            background: Colors.hsv(root.h, 1, 1, 1);
+            Rectangle { background: @linear-gradient(90deg, #ffffff 0%, #ffffff00 100%); }
+            Rectangle { background: @linear-gradient(180deg, #00000000 0%, #000000 100%); }
+            Rectangle {
+                x: root.s * parent.width - 7px;
+                y: (1 - root.v) * parent.height - 7px;
+                width: 14px;
+                height: 14px;
+                border-radius: 7px;
+                border-width: 2px;
+                border-color: #ffffff;
+            }
+            TouchArea {
+                function pick() {
+                    root.s = max(0, min(1, self.mouse-x / parent.width));
+                    root.v = 1 - max(0, min(1, self.mouse-y / parent.height));
+                    root.emit();
+                }
+                pointer-event(e) => {
+                    if (e.button == PointerEventButton.left && e.kind == PointerEventKind.down) {
+                        self.pick();
+                    }
+                }
+                moved => {
+                    if (self.pressed) {
+                        self.pick();
+                    }
+                }
+            }
+        }
+        Rectangle {
+            x: 12px;
+            y: 174px;
+            width: 212px;
+            height: 16px;
+            border-radius: 4px;
+            background: @linear-gradient(90deg, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+            Rectangle {
+                x: root.h / 360 * parent.width - 3px;
+                width: 6px;
+                height: parent.height;
+                border-radius: 3px;
+                border-width: 2px;
+                border-color: #ffffff;
+            }
+            TouchArea {
+                function pick() {
+                    root.h = 360 * max(0, min(1, self.mouse-x / parent.width));
+                    root.emit();
+                }
+                pointer-event(e) => {
+                    if (e.button == PointerEventButton.left && e.kind == PointerEventKind.down) {
+                        self.pick();
+                    }
+                }
+                moved => {
+                    if (self.pressed) {
+                        self.pick();
+                    }
+                }
+            }
+        }
+        Rectangle {
+            x: 12px;
+            y: 202px;
+            width: 212px;
+            height: 16px;
+            border-radius: 4px;
+            background: @linear-gradient(90deg, Colors.hsv(root.h, root.s, root.v, 0) 0%, Colors.hsv(root.h, root.s, root.v, 1) 100%);
+            border-width: 1px;
+            border-color: Theme.popup-border;
+            Rectangle {
+                x: root.a * parent.width - 3px;
+                width: 6px;
+                height: parent.height;
+                border-radius: 3px;
+                border-width: 2px;
+                border-color: #ffffff;
+            }
+            TouchArea {
+                function pick() {
+                    root.a = max(0, min(1, self.mouse-x / parent.width));
+                    root.emit();
+                }
+                pointer-event(e) => {
+                    if (e.button == PointerEventButton.left && e.kind == PointerEventKind.down) {
+                        self.pick();
+                    }
+                }
+                moved => {
+                    if (self.pressed) {
+                        self.pick();
+                    }
+                }
+            }
+        }
+        Text { x: 12px; y: 224px; text: "Hue / opacity"; color: Theme.text-dim; font-size: 11px; }
+        LineEdit {
+            x: 12px;
+            y: 244px;
+            width: 212px;
+            text: root.text;
+            edited(t) => { root.text-edited(t); }
+        }
+    }
+}
+

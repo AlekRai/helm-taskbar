@@ -1,0 +1,384 @@
+import { Theme } from "theme.slint";
+
+export struct AppItem {
+    title: string,
+    icon: image,
+    running: bool,
+    selected: bool,
+    // Geometry is computed in Rust so buttons can animate between positions.
+    x: float,
+    w: float,
+    present: bool,
+    // False for icon-only apps.
+    label: bool,
+    // Window is asking for attention.
+    flashing: bool,
+    overlay: image,
+    has-overlay: bool,
+    // 0 none, 1 indeterminate, 2 normal, 4 error, 8 paused.
+    progress-state: int,
+    progress: float,
+    // The Start button instead of an app.
+    is-start: bool,
+}
+
+component AppButton inherits Rectangle {
+    in property <AppItem> app;
+    callback clicked();
+    callback right-clicked();
+    callback dropped(float);
+    callback drag-moved(float);
+
+    property <bool> dragging: false;
+    property <bool> suppress-click: false;
+    in property <length> area-w;
+    in property <length> reserve: 88px;
+    // Bar edge on the left, clock/tray edge on the right (area starts `reserve` into the bar).
+    property <length> raw-dx: ta.mouse-x - ta.pressed-x;
+    property <length> drag-dx: dragging
+        ? max(-reserve - app.x * 1px, min(area-w + 4px - app.x * 1px - root.width, raw-dx))
+        : 0px;
+
+    x: app.x * 1px;
+    width: app.w * 1px;
+    z: dragging ? 10 : 0;
+    clip: false;
+    opacity: app.present ? 1 : 0;
+    animate x { duration: Theme.anim; easing: ease-out; }
+    animate width { duration: Theme.anim; easing: ease-out; }
+    animate opacity { duration: Theme.anim; easing: ease-out; }
+
+    Rectangle {
+        x: drag-dx;
+        clip: true;
+        width: parent.width;
+        animate x { duration: dragging ? 0ms : Theme.anim; easing: ease-out; }
+        y: 4px;
+        height: parent.height - 8px;
+        border-radius: Theme.button-radius;
+        background: ta.pressed && ta.has-hover ? Theme.pressed
+            : app.selected ? (ta.has-hover ? Theme.selected-hover : Theme.selected)
+            : ta.has-hover ? Theme.hover : transparent;
+        animate background { duration: Theme.anim; easing: ease-out; }
+
+        Rectangle {
+            visible: app.flashing;
+            border-radius: parent.border-radius;
+            background: Theme.accent;
+            opacity: 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg));
+        }
+
+        property <length> icon-cx: app.running && app.label ? 20px : parent.width / 2;
+        property <length> icon-size: ta.pressed && ta.has-hover && !dragging ? Theme.app-icon - 3px : Theme.app-icon;
+
+        icon := Image {
+            width: icon-size;
+            height: icon-size;
+            x: icon-cx - icon-size / 2;
+            y: (parent.height - icon-size) / 2;
+            source: app.icon;
+            visible: !app.is-start;
+            animate width, height, y { duration: 80ms; easing: ease-out; }
+            animate x { duration: Theme.anim; easing: ease-out; }
+        }
+        // Start logo: four accent tiles.
+        Rectangle {
+            visible: app.is-start;
+            width: icon-size - 4px;
+            height: icon-size - 4px;
+            x: icon-cx - self.width / 2;
+            y: (parent.height - self.height) / 2;
+            for q[k] in 4: Rectangle {
+                width: (parent.width - 2px) / 2;
+                height: (parent.height - 2px) / 2;
+                x: mod(k, 2) * (self.width + 2px);
+                y: floor(k / 2) * (self.height + 2px);
+                border-radius: 1.5px;
+                background: Theme.accent;
+            }
+        }
+        Text {
+            visible: self.opacity > 0.01;
+            opacity: app.running && app.label ? 1 : 0;
+            animate opacity { duration: Theme.anim; easing: ease-out; }
+            x: 40px;
+            width: parent.width - 49px;
+            height: parent.height;
+            text: app.title;
+            color: Theme.text;
+            font-size: 14px;
+            overflow: elide;
+            vertical-alignment: center;
+        }
+        // Taskbar progress (ITaskbarList3): -1 none, else 0..1; indeterminate pulses.
+        Rectangle {
+            visible: app.progress-state != 0;
+            x: icon-cx - 11px;
+            animate x { duration: Theme.anim; easing: ease-out; }
+            y: parent.height - 7px;
+            width: 22px;
+            height: 3px;
+            border-radius: 1.5px;
+            background: Theme.tint-strong;
+            clip: true;
+            Rectangle {
+                x: app.progress-state == 1 ? (parent.width * (0.5 + 0.5 * Math.sin(animation-tick() / 1.4s * 360deg)) - self.width / 2) : 0px;
+                width: app.progress-state == 1 ? 8px : parent.width * clamp(app.progress, 0, 1);
+                background: app.progress-state == 4 ? Theme.danger : app.progress-state == 8 ? Theme.warning : Theme.accent;
+                animate width { duration: Theme.anim; easing: ease-out; }
+            }
+        }
+        // Overlay badge at the icon's bottom-right corner.
+        Image {
+            visible: app.has-overlay;
+            width: 12px;
+            height: 12px;
+            x: icon-cx + 11px - 8px;
+            animate x { duration: Theme.anim; easing: ease-out; }
+            y: parent.height - 18px;
+            source: app.overlay;
+        }
+        // Indicator sits under the icon only: long when selected, short when running.
+        Rectangle {
+            visible: app.running;
+            width: app.selected ? 16px : 6px;
+            height: 2px;
+            x: icon-cx - self.width / 2;
+            animate x { duration: Theme.anim; easing: ease-out; }
+            y: parent.height - 2px;
+            border-radius: 1px;
+            background: app.selected ? Theme.accent : Theme.running-dot;
+            animate width, background { duration: Theme.anim; easing: ease-out; }
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: MouseCursor.default;
+        clicked => {
+            if (!root.suppress-click) { root.clicked(); }
+        }
+        moved => {
+            if (self.pressed && !root.dragging && abs(self.mouse-x - self.pressed-x) > 6px) {
+                root.dragging = true;
+                root.suppress-click = true;
+            }
+            if (root.dragging) {
+                root.drag-moved((root.app.x * 1px + root.width / 2 + root.drag-dx) / 1px);
+            }
+        }
+        pointer-event(e) => {
+            if (e.button == PointerEventButton.left && e.kind == PointerEventKind.down) {
+                root.suppress-click = false;
+            }
+            if (e.button == PointerEventButton.left && e.kind == PointerEventKind.up && root.dragging) {
+                root.dropped((root.app.x * 1px + root.width / 2 + root.drag-dx) / 1px);
+                root.dragging = false;
+            }
+            if (e.button == PointerEventButton.right && e.kind == PointerEventKind.up) {
+                root.right-clicked();
+            }
+        }
+    }
+}
+
+export struct TrayItem {
+    icon: image,
+    tip: string,
+}
+
+component TrayButton inherits Rectangle {
+    in property <TrayItem> item;
+    // Draws a chevron instead of the item's icon.
+    in property <bool> chevron: false;
+    callback clicked(int);
+    callback hovered(bool);
+    width: 28px;
+
+    Rectangle {
+        y: 4px;
+        height: parent.height - 8px;
+        border-radius: Theme.button-radius;
+        background: ta.pressed && ta.has-hover ? Theme.pressed : ta.has-hover ? Theme.hover : transparent;
+        animate background { duration: Theme.anim; easing: ease-out; }
+        if !root.chevron: Image {
+            width: 16px;
+            height: 16px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            source: root.item.icon;
+        }
+        if root.chevron: Path {
+            width: 10px;
+            height: 6px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            viewbox-width: 10;
+            viewbox-height: 6;
+            commands: "M 1 5 L 5 1 L 9 5";
+            stroke: Theme.text;
+            stroke-width: 1.5px;
+        }
+    }
+    ta := TouchArea {
+        changed has-hover => { root.hovered(self.has-hover); }
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.up && ta.has-hover) {
+                if (e.button == PointerEventButton.left) { root.clicked(0); }
+                if (e.button == PointerEventButton.right) { root.clicked(1); }
+            }
+        }
+    }
+}
+
+export component BarWindow inherits Window {
+    no-frame: true;
+    always-on-top: true;
+    background: Theme.bg;
+    title: "Rust Taskbar";
+
+    in property <[AppItem]> apps;
+    in property <[TrayItem]> tray;
+    // True when some tray icons live in the overflow flyout (a chevron button is shown).
+    in property <bool> has-overflow: false;
+    in property <string> clock;
+    in property <string> clock-date;
+    in property <bool> show-clock: true;
+    // Three small status icons beside the clock (primary bar only); the clock button opens quick settings.
+    in property <bool> show-sys: false;
+    in property <string> lang;
+    in property <length> clock-reserve: 88px;
+    // Space kept free on each side: clock plus (on the primary bar) the tray.
+    in property <length> reserve: 88px;
+    // Tray, language and clock sit on the left edge instead of the right.
+    in property <bool> side-left: false;
+    pure function mx(x: length, w: length) -> length {
+        return root.side-left ? root.width - x - w : x;
+    }
+    callback app-clicked(int);
+    callback app-right-clicked(int);
+    callback app-reordered(int, float);
+    callback app-drag-moved(int, float);
+    callback tray-clicked(int, int);
+    callback tray-hovered(int, bool);
+    callback overflow-clicked();
+    callback bar-pressed();
+    callback clock-clicked();
+    callback lang-clicked();
+    callback lang-right-clicked();
+    callback bar-right-clicked();
+
+    // Empty bar area; also catches right clicks on the clock.
+    TouchArea {
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down) {
+                root.bar-pressed();
+            }
+            if (e.button == PointerEventButton.right && e.kind == PointerEventKind.up) {
+                root.bar-right-clicked();
+            }
+        }
+    }
+
+    // The reserve is kept on both sides so the centered group never touches the clock or tray.
+    Rectangle {
+        x: root.reserve;
+        width: parent.width - 2 * root.reserve;
+        animate x, width { duration: Theme.anim; easing: ease-out; }
+        for app[i] in root.apps: AppButton {
+            app: app;
+            area-w: parent.width;
+            reserve: root.reserve;
+            clicked => { root.app-clicked(i); }
+            right-clicked => { root.app-right-clicked(i); }
+            dropped(c) => { root.app-reordered(i, c); }
+            drag-moved(c) => { root.app-drag-moved(i, c); }
+        }
+    }
+
+    for t[i] in root.tray: TrayButton {
+        item: t;
+        height: root.height;
+        x: root.mx(root.width - root.clock-reserve - (root.tray.length - i) * 28px, 28px);
+        animate x { duration: Theme.anim; easing: ease-out; }
+        clicked(b) => { root.tray-clicked(i, b); }
+        hovered(h) => { root.tray-hovered(i, h); }
+    }
+
+    if root.has-overflow: TrayButton {
+        chevron: true;
+        height: root.height;
+        x: root.mx(root.width - root.clock-reserve - (root.tray.length + 1) * 28px, 28px);
+        animate x { duration: Theme.anim; easing: ease-out; }
+        clicked(b) => { if (b == 0) { root.overflow-clicked(); } }
+        hovered(h) => { root.tray-hovered(-1, h); }
+    }
+
+    // Language button next to the clock (primary bar only).
+    if root.show-sys: Rectangle {
+        x: root.mx(parent.width - root.clock-reserve + 4px, 32px);
+        width: 32px;
+        Rectangle {
+            y: 4px;
+            height: parent.height - 8px;
+            border-radius: Theme.button-radius;
+            background: lang-ta.pressed && lang-ta.has-hover ? Theme.pressed
+                : lang-ta.has-hover ? Theme.hover : transparent;
+            animate background { duration: Theme.anim; easing: ease-out; }
+            Text {
+                width: parent.width;
+                height: parent.height;
+                text: root.lang;
+                color: Theme.text;
+                font-size: 13px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        lang-ta := TouchArea {
+            clicked => { root.lang-clicked(); }
+            pointer-event(e) => {
+                if (e.button == PointerEventButton.right && e.kind == PointerEventKind.up) {
+                    root.lang-right-clicked();
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        visible: root.show-clock;
+        x: root.mx(parent.width - root.clock-reserve + 4px + (root.show-sys ? 36px : 0px), self.width);
+        width: root.clock-reserve - 8px - (root.show-sys ? 36px : 0px);
+        Rectangle {
+            y: 4px;
+            height: parent.height - 8px;
+            border-radius: Theme.button-radius;
+            background: clock-ta.pressed && clock-ta.has-hover ? Theme.pressed
+                : clock-ta.has-hover ? Theme.hover : transparent;
+            animate background { duration: Theme.anim; easing: ease-out; }
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: root.clock;
+                    color: Theme.text;
+                    font-size: 14px;
+                    horizontal-alignment: center;
+                }
+                if root.clock-date != "": Text {
+                    text: root.clock-date;
+                    color: Theme.text-dim;
+                    font-size: 11px;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+        clock-ta := TouchArea {
+            clicked => { root.clock-clicked(); }
+            pointer-event(e) => {
+                if (e.button == PointerEventButton.right && e.kind == PointerEventKind.up) {
+                    root.bar-right-clicked();
+                }
+            }
+        }
+    }
+}

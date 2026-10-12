@@ -1,0 +1,32 @@
+export global Theme {
+    in-out property <duration> anim: 120ms;
+    in-out property <bool> repaint;
+    in-out property <float> popup-scale: 1.0;
+    in-out property <length> app-icon: 22px;
+    in-out property <length> button-radius: 4px;
+    in-out property <color> bg: #18181c;
+    in-out property <color> hover: #24242a;
+    in-out property <color> pressed: #1e1e23;
+    in-out property <color> selected: #2c2c34;
+    in-out property <color> selected-hover: #36363f;
+    in-out property <color> accent: #4ca0ff;
+    in-out property <color> running-dot: #6e6e7a;
+    in-out property <color> text: #f0f0f0;
+    in-out property <color> text-dim: #7c7c88;
+    in-out property <color> popup-bg: #202024;
+    in-out property <color> popup-border: #3a3a42;
+    in-out property <color> popup-hover: #ffffff14;
+    in-out property <color> popup-pressed: #ffffff0a;
+    // Popup window background; flips by an imperceptible amount when `repaint` toggles so parked windows redraw fully.
+    out property <color> popup-surface: root.repaint ? root.popup-bg : root.popup-bg.darker(0.002);
+    // Fixed overlay tints for cards and rows inside popups, and text drawn on the accent color.
+    out property <color> tint-faint: #ffffff08;
+    out property <color> tint: #ffffff10;
+    out property <color> tint-hover: #ffffff1c;
+    out property <color> on-accent: #0b0b10;
+    out property <color> tint-pressed: #ffffff0c;
+    out property <color> tint-strong: #ffffff30;
+    out property <color> shade: #00000030;
+    out property <color> danger: #e5484d;
+    out property <color> warning: #f5c542;
+}

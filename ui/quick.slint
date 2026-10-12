@@ -1,0 +1,327 @@
+import { Theme } from "theme.slint";
+import { CalendarView, Cell, PCell } from "calendar.slint";
+import { SpeakerIcon, ChevronRight } from "icons.slint";
+import { QItem, MixItem, ToggleTile, VolSlider, Row, ListPanel, MixRow, MixPanel } from "quick_widgets.slint";
+export { QItem, MixItem } from "quick_widgets.slint";
+
+export component QuickPopup inherits Window {
+    no-frame: true;
+    always-on-top: true;
+    background: Theme.popup-surface;
+    preferred-width: 360px;
+    preferred-height: 779px;
+    title: "Rust Taskbar Quick Settings";
+
+    // Expanded list under the tiles: 0 none, 1 Wi-Fi, 2 Bluetooth, 3 keyboard languages, 4 output devices.
+    in-out property <int> panel: 0;
+    in property <length> panel-h: 44px;
+    in-out property <float> volume: 0.5;
+    in-out property <bool> muted;
+    in property <bool> wifi-supported: true;
+    in property <bool> wifi-on;
+    in property <bool> net-eth;
+    in property <string> wifi-sub;
+    in property <bool> bt-supported: true;
+    in property <bool> bt-on;
+    in property <string> bt-device;
+    in property <string> device-name;
+    in property <bool> loading;
+    in property <[QItem]> items;
+    in-out property <[MixItem]> mix;
+    callback mix-volume(int, float);
+    callback mix-mute(int);
+    callback mix-hide(int);
+
+    callback volume-changed(float);
+    callback mute-clicked();
+    callback wifi-toggled();
+    callback bt-toggled();
+    callback open-list(int);
+    callback item-clicked(int);
+    callback eth-clicked();
+
+    // Network and Bluetooth are full-width cards; an expanded list lives inside its own card.
+    // Driven per frame from Rust together with the window height so both stay in sync.
+    in property <length> expand-h: 0px;
+    in-out property <int> exp-panel: 0;
+    changed panel => { if (root.panel != 0) { root.exp-panel = root.panel; } }
+    in property <bool> show-cal: true;
+    in property <bool> show-wifi: true;
+    in property <bool> show-bt: true;
+    in property <bool> show-mixer: true;
+    property <length> cal-h: root.show-cal ? 420px : 0px;
+    property <length> top-y: root.show-cal ? 421px : 0px;
+    property <length> net-h: root.show-wifi ? 72px + (root.exp-panel == 1 ? root.expand-h : 0px) : 0px;
+    property <length> bt-y: root.show-wifi ? 8px + root.net-h + 8px : 8px;
+    property <length> bt-h: root.show-bt ? 72px + (root.exp-panel == 2 ? root.expand-h : 0px) : 0px;
+    // Top of the volume section.
+    property <length> oy: root.bt-y + root.bt-h;
+
+    // Calendar on top, quick settings below, all in one window.
+    in-out property <string> cal-header <=> cal.header;
+    in-out property <string> cal-month-title <=> cal.month-title;
+    in-out property <[Cell]> cal-cells <=> cal.cells;
+    in-out property <float> cal-frac <=> cal.frac;
+    in-out property <bool> cal-picker-open <=> cal.picker-open;
+    in-out property <bool> cal-year-mode <=> cal.year-mode;
+    in-out property <string> cal-picker-title <=> cal.picker-title;
+    in-out property <[PCell]> cal-pcells <=> cal.pcells;
+    in-out property <float> cal-pfrac <=> cal.pfrac;
+    in-out property <[string]> cal-weekday-names <=> cal.weekday-names;
+    callback cal-header-clicked();
+    callback cal-prev();
+    callback cal-next();
+    callback cal-title-clicked();
+    callback cal-day-clicked(int);
+    callback cal-scrolled(length);
+    callback cal-pick-cell(int);
+    callback cal-picker-step(int);
+
+    cal := CalendarView {
+        visible: root.show-cal;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: 420px;
+        header-clicked => { root.cal-header-clicked(); }
+        prev => { root.cal-prev(); }
+        next => { root.cal-next(); }
+        title-clicked => { root.cal-title-clicked(); }
+        day-clicked(k) => { root.cal-day-clicked(k); }
+        scrolled(d) => { root.cal-scrolled(d); }
+        pick-cell(k) => { root.cal-pick-cell(k); }
+        picker-step(d) => { root.cal-picker-step(d); }
+    }
+    if root.show-cal: Rectangle {
+        x: 0;
+        y: 420px;
+        width: parent.width;
+        height: 1px;
+        background: Theme.popup-border;
+    }
+
+    Rectangle {
+        x: 0;
+        y: root.top-y;
+        width: parent.width;
+        height: parent.height - root.top-y;
+
+    if root.show-wifi: Rectangle {
+        x: 16px;
+        y: 8px;
+        width: 328px;
+        height: root.net-h;
+        clip: true;
+        border-radius: 8px;
+        background: Theme.tint;
+        if root.net-eth: ToggleTile {
+            x: 0;
+            y: 0;
+            width: parent.width / 2 - 2px;
+            kind: "eth";
+            label: "Ethernet";
+            sub: "Connected";
+            on: true;
+            toggled => { root.eth-clicked(); }
+        }
+        ToggleTile {
+            x: root.net-eth ? parent.width / 2 + 2px : 0px;
+            y: 0;
+            width: root.net-eth ? parent.width / 2 - 2px : parent.width;
+            kind: "wifi";
+            label: "Wi-Fi";
+            sub: root.wifi-supported ? root.wifi-sub : "Unavailable";
+            on: root.wifi-on;
+            enabled: root.wifi-supported;
+            has-more: root.wifi-supported;
+            expanded: root.panel == 1;
+            toggled => { root.wifi-toggled(); }
+            more => { root.open-list(1); }
+        }
+        if root.exp-panel == 1 && (root.panel != 0 || root.expand-h > 1px): ListPanel {
+            x: 8px;
+            y: 72px;
+            width: parent.width - 16px;
+            height: root.panel-h - 8px;
+            items: root.items;
+            loading: root.loading;
+            item-clicked(i) => { root.item-clicked(i); }
+        }
+    }
+
+    if root.show-bt: Rectangle {
+        x: 16px;
+        y: root.bt-y;
+        width: 328px;
+        height: root.bt-h;
+        clip: true;
+        border-radius: 8px;
+        background: Theme.tint;
+        ToggleTile {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            kind: "bt";
+            label: "Bluetooth";
+            sub: !root.bt-supported ? "Unavailable" : !root.bt-on ? "Off" : root.bt-device != "" ? root.bt-device : "On";
+            on: root.bt-on;
+            enabled: root.bt-supported;
+            has-more: root.bt-supported;
+            expanded: root.panel == 2;
+            toggled => { root.bt-toggled(); }
+            more => { root.open-list(2); }
+        }
+        if root.exp-panel == 2 && (root.panel != 0 || root.expand-h > 1px): ListPanel {
+            x: 8px;
+            y: 72px;
+            width: parent.width - 16px;
+            height: root.panel-h - 8px;
+            items: root.items;
+            loading: root.loading;
+            item-clicked(i) => { root.item-clicked(i); }
+        }
+    }
+
+    Text {
+        x: 16px;
+        y: root.oy + 16px;
+        text: "Volume";
+        color: Theme.text-dim;
+        font-size: 12px;
+    }
+    Rectangle {
+        x: 16px;
+        y: root.oy + 36px;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        background: mute-ta.pressed ? Theme.popup-pressed : mute-ta.has-hover ? Theme.popup-hover : transparent;
+        SpeakerIcon {
+            fg: Theme.text;
+            muted: root.muted || root.volume < 0.005;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+        }
+        mute-ta := TouchArea { clicked => { root.mute-clicked(); } }
+    }
+    VolSlider {
+        x: 56px;
+        y: root.oy + 40px;
+        width: 244px;
+        value <=> root.volume;
+        changed(v) => { root.volume-changed(v); }
+    }
+    Text {
+        x: 308px;
+        y: root.oy + 40px;
+        width: 36px;
+        height: 24px;
+        text: round(root.volume * 100);
+        color: Theme.text;
+        font-size: 13px;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+    }
+
+    Rectangle {
+        x: 16px;
+        y: root.oy + 82px;
+        width: 328px;
+        height: 46px + (root.exp-panel == 4 ? root.expand-h : 0px);
+        clip: true;
+        border-radius: 8px;
+        background: Theme.tint;
+        Rectangle {
+            x: 0;
+            y: 0;
+            height: 46px;
+            border-radius: 8px;
+            background: dev-ta.pressed ? Theme.tint-pressed : dev-ta.has-hover ? Theme.tint-hover : transparent;
+            animate background { duration: Theme.anim; easing: ease-out; }
+            Text {
+                x: 12px;
+                y: 6px;
+                text: "Output device";
+                color: Theme.text-dim;
+                font-size: 11px;
+            }
+            Text {
+                x: 12px;
+                y: 22px;
+                width: parent.width - 40px;
+                text: root.device-name;
+                color: Theme.text;
+                font-size: 13px;
+                overflow: elide;
+            }
+            ChevronRight {
+                fg: Theme.text;
+                x: parent.width - 20px;
+                y: (parent.height - self.height) / 2;
+                angle: root.panel == 4 ? -90deg : 0deg;
+            }
+            dev-ta := TouchArea { clicked => { root.open-list(4); } }
+        }
+        if root.exp-panel == 4 && (root.panel != 0 || root.expand-h > 1px): ListPanel {
+            x: 8px;
+            y: 46px;
+            width: parent.width - 16px;
+            height: root.panel-h - 8px;
+            items: root.items;
+            loading: root.loading;
+            item-clicked(i) => { root.item-clicked(i); }
+        }
+    }
+
+    if root.show-mixer: Rectangle {
+        x: 16px;
+        y: root.oy + 136px;
+        width: 328px;
+        height: 46px + (root.exp-panel == 5 ? root.expand-h : 0px);
+        clip: true;
+        border-radius: 8px;
+        background: Theme.tint;
+        Rectangle {
+            x: 0;
+            y: 0;
+            height: 46px;
+            border-radius: 8px;
+            background: mix-ta.pressed ? Theme.tint-pressed : mix-ta.has-hover ? Theme.tint-hover : transparent;
+            animate background { duration: Theme.anim; easing: ease-out; }
+            Text {
+                x: 12px;
+                y: 6px;
+                text: "Volume mixer";
+                color: Theme.text-dim;
+                font-size: 11px;
+            }
+            Text {
+                x: 12px;
+                y: 22px;
+                width: parent.width - 40px;
+                text: "Per-app volume";
+                color: Theme.text;
+                font-size: 13px;
+                overflow: elide;
+            }
+            ChevronRight {
+                fg: Theme.text;
+                x: parent.width - 20px;
+                y: (parent.height - self.height) / 2;
+                angle: root.panel == 5 ? -90deg : 0deg;
+            }
+            mix-ta := TouchArea { clicked => { root.open-list(5); } }
+        }
+        if root.exp-panel == 5 && (root.panel != 0 || root.expand-h > 1px): MixPanel {
+            x: 8px;
+            y: 46px;
+            width: parent.width - 16px;
+            height: root.panel-h - 8px;
+            items: root.mix;
+            volume(i, v) => { root.mix-volume(i, v); }
+            mute(i) => { root.mix-mute(i); }
+            hide(i) => { root.mix-hide(i); }
+        }
+    }
+    }
+}

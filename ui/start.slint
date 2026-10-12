@@ -1,0 +1,270 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+
+export struct StartItem {
+    name: string,
+    icon: image,
+    id: string,
+    pinned: bool,
+}
+
+component PinTile inherits Rectangle {
+    in property <StartItem> item;
+    callback launch();
+    callback unpin();
+    width: 88px;
+    height: 88px;
+
+    Rectangle {
+        x: 2px;
+        y: 2px;
+        width: parent.width - 4px;
+        height: parent.height - 4px;
+        border-radius: Theme.button-radius + 2px;
+        background: ta.pressed ? Theme.pressed : ta.has-hover || x-ta.has-hover ? Theme.hover : transparent;
+        animate background { duration: Theme.anim; easing: ease-out; }
+    }
+    Image {
+        source: root.item.icon;
+        width: 36px;
+        height: 36px;
+        x: (parent.width - self.width) / 2;
+        y: 12px;
+    }
+    Text {
+        x: 4px;
+        y: 56px;
+        width: parent.width - 8px;
+        height: 24px;
+        text: root.item.name;
+        color: Theme.text;
+        font-size: 12px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    ta := TouchArea { clicked => { root.launch(); } }
+    Rectangle {
+        visible: ta.has-hover || x-ta.has-hover;
+        x: parent.width - 22px;
+        y: 4px;
+        width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        background: x-ta.has-hover ? Theme.selected-hover : Theme.selected;
+        Text { text: "x"; color: Theme.text; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+        x-ta := TouchArea { clicked => { root.unpin(); } }
+    }
+}
+
+component ResultRow inherits Rectangle {
+    in property <StartItem> item;
+    in property <bool> selected;
+    callback launch();
+    callback toggle-pin();
+    height: 44px;
+
+    Rectangle {
+        border-radius: Theme.button-radius + 2px;
+        background: ta.pressed ? Theme.pressed : root.selected ? Theme.selected : ta.has-hover ? Theme.hover : transparent;
+        animate background { duration: Theme.anim; easing: ease-out; }
+    }
+    Image {
+        source: root.item.icon;
+        x: 10px;
+        y: 8px;
+        width: 28px;
+        height: 28px;
+    }
+    Text {
+        x: 52px;
+        width: parent.width - 52px - 80px;
+        height: parent.height;
+        text: root.item.name;
+        color: Theme.text;
+        font-size: 14px;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    ta := TouchArea { clicked => { root.launch(); } }
+    Rectangle {
+        visible: ta.has-hover || pin-ta.has-hover || root.selected;
+        x: parent.width - 72px;
+        y: 8px;
+        width: 64px;
+        height: 28px;
+        border-radius: Theme.button-radius + 2px;
+        background: pin-ta.pressed ? Theme.pressed : pin-ta.has-hover ? Theme.selected-hover : Theme.selected;
+        Text {
+            text: root.item.pinned ? "Unpin" : "Pin";
+            color: Theme.text;
+            font-size: 12px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        pin-ta := TouchArea { clicked => { root.toggle-pin(); } }
+    }
+}
+
+component PowerButton inherits Rectangle {
+    in property <string> text;
+    callback clicked();
+    height: 32px;
+    width: lbl.preferred-width + 24px;
+    border-radius: Theme.button-radius + 2px;
+    background: ta.pressed ? Theme.pressed : ta.has-hover ? Theme.hover : transparent;
+    animate background { duration: Theme.anim; easing: ease-out; }
+    lbl := Text {
+        text: root.text;
+        color: Theme.text;
+        font-size: 13px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+export component StartPopup inherits Window {
+    no-frame: true;
+    always-on-top: true;
+    background: Theme.popup-surface;
+    preferred-width: 560px;
+    preferred-height: 620px;
+    title: "Rust Taskbar Start";
+
+    in property <[StartItem]> pinned;
+    in property <[StartItem]> results;
+    in-out property <string> query;
+    in-out property <int> sel;
+    callback query-changed(string);
+    callback launch(string);
+    callback toggle-pin(string);
+    callback power(int);
+
+    public function focus-search() {
+        search.focus();
+    }
+
+    VerticalLayout {
+        padding: 16px;
+        spacing: 12px;
+
+        Rectangle {
+            height: 40px;
+            border-radius: Theme.button-radius + 2px;
+            border-width: 1px;
+            border-color: Theme.accent;
+            background: Theme.hover;
+            clip: true;
+            Text {
+                visible: root.query == "";
+                x: 14px;
+                text: "Search apps";
+                color: Theme.text-dim;
+                font-size: 14px;
+                vertical-alignment: center;
+            }
+            search := TextInput {
+                x: 14px;
+                width: parent.width - 28px;
+                height: parent.height;
+                text <=> root.query;
+                color: Theme.text;
+                font-size: 14px;
+                vertical-alignment: center;
+                single-line: true;
+                selection-background-color: Theme.accent;
+                edited => {
+                    root.sel = 0;
+                    root.query-changed(self.text);
+                }
+                key-pressed(e) => {
+                    if (e.text == Key.DownArrow) {
+                        root.sel = min(root.sel + 1, root.results.length - 1);
+                        return accept;
+                    }
+                    if (e.text == Key.UpArrow) {
+                        root.sel = max(root.sel - 1, 0);
+                        return accept;
+                    }
+                    if (e.text == Key.Return) {
+                        if (root.results.length > 0) {
+                            root.launch(root.results[min(root.sel, root.results.length - 1)].id);
+                        }
+                        return accept;
+                    }
+                    return reject;
+                }
+            }
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+            clip: true;
+
+            if root.query == "": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Pinned"; color: Theme.text; font-size: 14px; font-weight: 600; height: 24px; }
+                if root.pinned.length == 0: Text {
+                    text: "No pinned apps yet. Search for an app and click Pin.";
+                    color: Theme.text-dim;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                }
+                ScrollView {
+                    vertical-stretch: 1;
+                    content-height: ceil(root.pinned.length / 6) * 88px;
+                    for item[i] in root.pinned: PinTile {
+                        item: item;
+                        x: mod(i, 6) * 88px;
+                        y: floor(i / 6) * 88px;
+                        launch => { root.launch(item.id); }
+                        unpin => { root.toggle-pin(item.id); }
+                    }
+                }
+            }
+            if root.query != "": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Apps"; color: Theme.text; font-size: 14px; font-weight: 600; height: 24px; }
+                if root.results.length == 0: Text {
+                    text: "No apps found.";
+                    color: Theme.text-dim;
+                    font-size: 13px;
+                }
+                ScrollView {
+                    vertical-stretch: 1;
+                    content-height: root.results.length * 44px;
+                    for item[i] in root.results: ResultRow {
+                        item: item;
+                        y: i * 44px;
+                        width: parent.width;
+                        selected: i == root.sel;
+                        launch => { root.launch(item.id); }
+                        toggle-pin => { root.toggle-pin(item.id); }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.popup-border;
+        }
+        HorizontalLayout {
+            height: 32px;
+            alignment: end;
+            spacing: 4px;
+            PowerButton { text: "Lock"; clicked => { root.power(0); } }
+            PowerButton { text: "Sign out"; clicked => { root.power(1); } }
+            PowerButton { text: "Sleep"; clicked => { root.power(2); } }
+            PowerButton { text: "Restart"; clicked => { root.power(3); } }
+            PowerButton { text: "Shut down"; clicked => { root.power(4); } }
+        }
+    }
+
+    Rectangle {
+        border-width: 1px;
+        border-color: Theme.popup-border;
+        border-radius: 8px;
+    }
+}

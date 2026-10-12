@@ -1,0 +1,65 @@
+import { Theme } from "theme.slint";
+
+export struct MenuEntry {
+    label: string,
+    enabled: bool,
+    separator: bool,
+    id: int,
+}
+
+component MenuRow inherits Rectangle {
+    in property <MenuEntry> entry;
+    callback activated();
+    height: entry.separator ? 9px : 32px;
+
+    if entry.separator: Rectangle {
+        y: 4px;
+        height: 1px;
+        background: Theme.popup-border;
+    }
+    if !entry.separator: Rectangle {
+        border-radius: Theme.button-radius;
+        background: ta.pressed ? Theme.popup-pressed : ta.has-hover && entry.enabled ? Theme.popup-hover : transparent;
+        animate background { duration: Theme.anim; easing: ease-out; }
+        Text {
+            x: 12px;
+            width: parent.width - 24px;
+            text: entry.label;
+            color: entry.enabled ? Theme.text : Theme.text-dim;
+            font-size: 13px;
+            vertical-alignment: center;
+        }
+        ta := TouchArea {
+            enabled: entry.enabled;
+            clicked => { root.activated(); }
+        }
+    }
+}
+
+export component MenuPopup inherits Window {
+    no-frame: true;
+    always-on-top: true;
+    background: Theme.popup-surface;
+    preferred-width: 220px;
+    preferred-height: 100px;
+    title: "Rust Taskbar Menu";
+
+    in property <[MenuEntry]> entries;
+    callback activated(int);
+
+    VerticalLayout {
+        padding: 4px;
+        padding-left: 4px;
+        padding-right: 4px;
+        for e in root.entries: MenuRow {
+            entry: e;
+            activated => { root.activated(e.id); }
+        }
+    }
+
+    Rectangle {
+        border-width: 1px;
+        border-color: Theme.popup-border;
+        border-radius: 8px;
+    }
+}

@@ -1,0 +1,114 @@
+// Icons scale with their own width/height.
+export component SpeakerIcon inherits Rectangle {
+    in property <color> fg: #f0f0f0;
+    in property <bool> muted;
+    width: 18px;
+    height: 16px;
+    Path {
+        x: 0px;
+        width: root.width * 12 / 18;
+        height: root.height;
+        viewbox-width: 12;
+        viewbox-height: 16;
+        commands: "M 1 5.5 L 4.5 5.5 L 9 1.5 L 9 14.5 L 4.5 10.5 L 1 10.5 Z";
+        fill: root.fg;
+    }
+    if !root.muted: Path {
+        x: root.width * 11 / 18;
+        width: root.width * 6 / 18;
+        height: root.height;
+        viewbox-width: 6;
+        viewbox-height: 16;
+        commands: "M 1 5 Q 4.5 8 1 11";
+        stroke: root.fg;
+        stroke-width: 1.4px * root.height / 16px;
+        stroke-line-cap: round;
+    }
+    if root.muted: Path {
+        x: root.width * 11 / 18;
+        width: root.width * 7 / 18;
+        height: root.height;
+        viewbox-width: 7;
+        viewbox-height: 16;
+        commands: "M 1 5.5 L 6.5 10.5 M 6.5 5.5 L 1 10.5";
+        stroke: root.fg;
+        stroke-width: 1.4px * root.height / 16px;
+        stroke-line-cap: round;
+    }
+}
+
+export component WifiIcon inherits Rectangle {
+    in property <color> fg: #f0f0f0;
+    width: 18px;
+    height: 14px;
+    for d in [
+        "M 1 5 Q 9 -2 17 5",
+        "M 4 8 Q 9 3.5 14 8",
+        "M 9 11.5 L 9 11.6",
+    ]: Path {
+        width: root.width;
+        height: root.height;
+        viewbox-width: 18;
+        viewbox-height: 14;
+        commands: d;
+        stroke: root.fg;
+        stroke-width: 1.6px * root.height / 14px;
+        stroke-line-cap: round;
+    }
+}
+
+export component EthernetIcon inherits Rectangle {
+    in property <color> fg: #f0f0f0;
+    width: 18px;
+    height: 14px;
+    for d in [
+        "M 2.5 2 L 15.5 2 L 15.5 9 L 2.5 9 Z",
+        "M 9 9 L 9 12",
+        "M 5 12 L 13 12",
+    ]: Path {
+        width: root.width;
+        height: root.height;
+        viewbox-width: 18;
+        viewbox-height: 14;
+        commands: d;
+        stroke: root.fg;
+        stroke-width: 1.5px * root.height / 14px;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+    }
+}
+
+export component BtIcon inherits Rectangle {
+    in property <color> fg: #f0f0f0;
+    width: 12px;
+    height: 16px;
+    Path {
+        width: root.width;
+        height: root.height;
+        viewbox-width: 12;
+        viewbox-height: 16;
+        commands: "M 2 4.5 L 10 11.5 L 6 15 L 6 1 L 10 4.5 L 2 11.5";
+        stroke: root.fg;
+        stroke-width: 1.4px * root.height / 16px;
+        stroke-line-join: round;
+        stroke-line-cap: round;
+    }
+}
+
+export component ChevronRight inherits Rectangle {
+    in property <color> fg: #f0f0f0;
+    in property <angle> angle: 0deg;
+    width: 8px;
+    height: 12px;
+    Path {
+        width: 8px;
+        height: 12px;
+        viewbox-width: 8;
+        viewbox-height: 12;
+        commands: root.angle != 0deg ? "M 1.5 3 L 6 7.5 L 10.5 3" : "M 1.5 1.5 L 6 6 L 1.5 10.5";
+        stroke: root.fg;
+        stroke-width: 1.5px;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+    }
+}

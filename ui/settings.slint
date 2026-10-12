@@ -1,0 +1,793 @@
+import { ScrollView, Palette } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Button, CheckBox, LineEdit, SpinBox, ResetBtn, SectionTitle, Caption, Segmented, Opt } from "settings_widgets.slint";
+import { LabelPreview, StartPreview, ClockPreview, TimePreview, RadiusPreview, SpeedPreview, ColorsPreview, IconGrid, ColorPicker } from "settings_previews.slint";
+import { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp } from "settings_types.slint";
+export { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp } from "settings_types.slint";
+
+export component SettingsWindow inherits Window {
+    title: "Taskbar Settings";
+    icon: @image-url("icon.png");
+    preferred-width: 760px;
+    preferred-height: 640px;
+    min-width: 640px;
+    min-height: 500px;
+
+    in-out property <bool> autostart;
+    in-out property <bool> clock-24h;
+    in property <[ColorRow]> colors;
+    in-out property <int> radius;
+    in-out property <int> anim-ms;
+    in property <[GridItem]> icon-only;
+    in property <[RuleRow]> rules;
+    in property <[MonRow]> monitors;
+    in property <[string]> mon-titles;
+    in-out property <int> mon-sel;
+    in property <string> config-path;
+
+    callback autostart-toggled(bool);
+    callback clock-toggled(bool);
+    callback color-edited(int, string);
+    callback color-picked(int, color);
+    callback radius-edited(int);
+    callback anim-edited(int);
+    callback reset-theme();
+    callback color-reset(int);
+    callback apply-preset(int);
+    callback theme-from-accent(color);
+    callback theme-from-accent-text(string);
+    in property <[PresetItem]> presets;
+    in property <int> radius-default;
+    in property <int> anim-default;
+    callback add-icon-only(string);
+    callback remove-icon-only(int);
+    callback add-rule(string, string, string);
+    callback remove-rule(int);
+    callback monitor-labels(int, bool);
+    callback monitor-clock(int, bool);
+    callback monitor-side(int, bool);
+    callback monitor-part(int, string, bool);
+    callback monitor-start(int, bool);
+    callback remove-pin(int, int);
+    callback open-config();
+
+    in-out property <int> icon-size: 22;
+    in-out property <int> bar-height: 0;
+    in-out property <bool> clock-seconds;
+    in-out property <int> clock-date;
+    in-out property <int> anim-mode: 2;
+    in-out property <int> tip-delay: 450;
+    in-out property <int> tray-cols: 5;
+    in-out property <bool> show-cal: true;
+    in-out property <bool> show-wifi: true;
+    in-out property <bool> show-bt: true;
+    in-out property <bool> show-mixer: true;
+    in-out property <bool> mixer-hide-system;
+    in property <[TrayApp]> tray-apps;
+    in property <[string]> mixer-hidden;
+    callback ui-int(string, int);
+    callback ui-bool(string, bool);
+    callback tray-app-toggled(int, bool);
+    callback tray-app-add(string);
+    callback mixer-unhide(int);
+    callback reset-section(int);
+    callback reset-field(string);
+    in property <[string]> profiles;
+    in property <string> active-profile;
+    in property <string> confirm-profile;
+    in property <string> profile-status;
+    in-out property <string> profile-name;
+    callback profile-save(string);
+    callback profile-load(int);
+    callback profile-delete(int);
+    callback profile-confirm();
+    callback profile-cancel();
+    callback profile-export();
+    callback profile-import();
+    in property <[string]> date-options;
+    in property <int> bar-height-default: 48;
+
+    background: Theme.popup-bg;
+
+    // Std widgets read Palette, so mirror the user theme into it.
+    public function sync-palette() {
+        Palette.color-scheme = Theme.bg.to-hsv().value > 0.5 ? ColorScheme.light : ColorScheme.dark;
+    }
+
+    init => { self.sync-palette(); }
+
+    property <int> tab: 0;
+
+    VerticalLayout {
+        spacing: 0px;
+        Rectangle {
+            height: 36px;
+            vertical-stretch: 0;
+            background: Theme.bg;
+            HorizontalLayout {
+                for name[i] in ["General", "Appearance", "Apps", "Monitors", "Bar", "Tray", "Quick settings", "Profiles"]: Rectangle {
+                    background: root.tab == i ? Theme.popup-bg : ta.has-hover ? Theme.hover : transparent;
+                    Text {
+                        text: name;
+                        color: root.tab == i ? Theme.text : Theme.text-dim;
+                        font-weight: root.tab == i ? 700 : 400;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    Rectangle { y: parent.height - 3px; height: 3px; background: Theme.accent; visible: root.tab == i; }
+                    ta := TouchArea { clicked => { root.tab = i; } }
+                }
+            }
+        }
+        if root.tab == 0: Rectangle {
+            vertical-stretch: 1;
+            VerticalLayout {
+                alignment: start;
+                spacing: 18px;
+                padding: 20px;
+                SectionTitle { text: "General"; }
+                HorizontalLayout {
+                    spacing: 20px;
+                    VerticalLayout {
+                        spacing: 4px;
+                        CheckBox {
+                            text: "Start with Windows";
+                            checked: root.autostart;
+                            toggled => { root.autostart-toggled(self.checked); }
+                        }
+                        Caption { text: "Launches the taskbar at sign-in. A watchdog brings back the Windows taskbar if this one exits."; }
+                    }
+                }
+                VerticalLayout {
+                    spacing: 8px;
+                    Text { color: Theme.text; text: "Clock format"; }
+                    HorizontalLayout {
+                        spacing: 20px;
+                        VerticalLayout {
+                            width: 240px;
+                            alignment: center;
+                            Segmented {
+                                options: ["12-hour", "24-hour"];
+                                current: root.clock-24h ? 1 : 0;
+                                selected(i) => {
+                                    root.clock-24h = i == 1;
+                                    root.clock-toggled(i == 1);
+                                }
+                            }
+                        }
+                        TimePreview { clock-24h: root.clock-24h; }
+                        Rectangle { }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 20px;
+                    VerticalLayout {
+                        spacing: 6px;
+                        Caption { text: "Config file: " + root.config-path; }
+                        Button { text: "Open config file"; clicked => { root.open-config(); } }
+                    }
+                }
+            }
+        }
+        if root.tab == 1: Rectangle {
+            vertical-stretch: 1;
+            ScrollView {
+            VerticalLayout {
+                padding: 20px;
+                spacing: 10px;
+                alignment: start;
+                SectionTitle { text: "Themes"; }
+                Rectangle {
+                    vertical-stretch: 0;
+                    property <int> cols: max(1, floor(self.width / 140px));
+                    height: ceil(root.presets.length / self.cols) * 44px;
+                    for p[i] in root.presets: Rectangle {
+                        x: mod(i, parent.cols) * (parent.width / parent.cols);
+                        y: floor(i / parent.cols) * 44px;
+                        width: parent.width / parent.cols - 8px;
+                        height: 38px;
+                        border-radius: 6px;
+                        background: p.bar;
+                        border-width: 1px;
+                        border-color: pta.has-hover ? p.accent : Theme.popup-border;
+                        Rectangle { x: 10px; width: 16px; height: 16px; border-radius: 8px; background: p.accent; }
+                        Text { x: 34px; width: parent.width - 42px; text: p.name; color: p.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                        pta := TouchArea { clicked => { root.apply-preset(i); } }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 12px;
+                    height: 40px;
+                    VerticalLayout {
+                        width: 130px;
+                        alignment: center;
+                        Text { color: Theme.text; text: "Theme color"; }
+                    }
+                    VerticalLayout {
+                        width: 30px;
+                        alignment: center;
+                        ColorPicker {
+                            value: root.colors.length > 0 ? root.colors[0].swatch : #4ca0ff;
+                            text: root.colors.length > 0 ? root.colors[0].value : "";
+                            picked(col) => { root.theme-from-accent(col); }
+                            text-edited(t) => { root.theme-from-accent-text(t); }
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Caption { text: "Pick one color and all other colors adapt to it. You can still tweak each one below."; }
+                    }
+                }
+                SectionTitle { text: "Colors (click a swatch to pick)"; }
+                ColorsPreview { colors: root.colors; }
+                Rectangle {
+                    vertical-stretch: 0;
+                    property <int> cols: max(1, floor(self.width / 250px));
+                    height: ceil(root.colors.length / self.cols) * 40px;
+                    for c[i] in root.colors: Rectangle {
+                        x: mod(i, parent.cols) * (parent.width / parent.cols);
+                        y: floor(i / parent.cols) * 40px;
+                        width: parent.width / parent.cols;
+                        height: 40px;
+                        Text { x: 0px; width: 130px; color: Theme.text; text: c.label; vertical-alignment: center; overflow: elide; }
+                        ColorPicker {
+                            x: 140px;
+                            y: 9px;
+                            value: c.swatch;
+                            text: c.value;
+                            picked(col) => { root.color-picked(i, col); }
+                            text-edited(t) => { root.color-edited(i, t); }
+                        }
+                        ResetBtn {
+                            x: 178px;
+                            y: 9px;
+                            visible: c.modified;
+                            clicked => { root.color-reset(i); }
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 12px;
+                    VerticalLayout {
+                        width: 200px;
+                        alignment: center;
+                        Text { color: Theme.text; text: "Corner radius (px)"; }
+                        Caption { text: "Window buttons, tray icons, clock, menu items, calendar buttons"; font-size: 11px; }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        SpinBox {
+                            minimum: 0;
+                            maximum: 24;
+                            value <=> root.radius;
+                            edited(v) => { root.radius-edited(v); }
+                        }
+                    }
+                    VerticalLayout {
+                        width: 46px;
+                        alignment: center;
+                        ResetBtn {
+                            visible: root.radius != root.radius-default;
+                            clicked => { root.radius = root.radius-default; root.radius-edited(root.radius-default); }
+                        }
+                    }
+                    RadiusPreview { radius: root.radius; }
+                    Rectangle { }
+                }
+                HorizontalLayout {
+                    spacing: 12px;
+                    VerticalLayout {
+                        width: 200px;
+                        alignment: center;
+                        Text { color: Theme.text; text: "Animation speed (ms)"; }
+                        Caption { text: "Duration of slides, fades and hover effects"; font-size: 11px; }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        SpinBox {
+                            minimum: 0;
+                            maximum: 1000;
+                            value <=> root.anim-ms;
+                            edited(v) => { root.anim-edited(v); }
+                        }
+                    }
+                    VerticalLayout {
+                        width: 46px;
+                        alignment: center;
+                        ResetBtn {
+                            visible: root.anim-ms != root.anim-default;
+                            clicked => { root.anim-ms = root.anim-default; root.anim-edited(root.anim-default); }
+                        }
+                    }
+                    SpeedPreview { ms: root.anim-ms; }
+                    Rectangle { }
+                }
+                HorizontalLayout {
+                    vertical-stretch: 0;
+                    Rectangle { }
+                    Button { text: "Reset everything"; clicked => { root.reset-theme(); } }
+                }
+            }
+            }
+        }
+        if root.tab == 2: Rectangle {
+            vertical-stretch: 1;
+            ScrollView {
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 10px;
+                    alignment: start;
+                    SectionTitle { text: "Icon-only apps (no label)"; }
+                    IconGrid {
+                        items: root.icon-only;
+                        remove(i) => { root.remove-icon-only(i); }
+                    }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        add-exe := LineEdit { placeholder-text: "app.exe"; }
+                        Button {
+                            text: "Add";
+                            clicked => {
+                                root.add-icon-only(add-exe.text);
+                                add-exe.text = "";
+                            }
+                        }
+                    }
+                    SectionTitle { text: "Icon overrides"; }
+                    Caption {
+                        text: "When the exe matches and the window title contains the text, the icon file is used. Relative paths are in the icons folder next to the config.";
+                    }
+                    for r[i] in root.rules: HorizontalLayout {
+                        spacing: 10px;
+                        Image { source: r.app-icon; width: 24px; height: 24px; image-fit: contain; }
+                        Text { color: Theme.text; text: r.exe + " | " + r.title + " →"; vertical-alignment: center; }
+                        Image { source: r.icon; width: 24px; height: 24px; image-fit: contain; }
+                        Text { color: Theme.text; text: r.icon-name; vertical-alignment: center; overflow: elide; }
+                        Rectangle { }
+                        Button { text: "Remove"; clicked => { root.remove-rule(i); } }
+                    }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        rule-exe := LineEdit { placeholder-text: "exe (or *)"; }
+                        rule-title := LineEdit { placeholder-text: "title contains"; }
+                        rule-icon := LineEdit { placeholder-text: "icon.ico"; }
+                        Button {
+                            text: "Add";
+                            clicked => {
+                                root.add-rule(rule-exe.text, rule-title.text, rule-icon.text);
+                                rule-exe.text = "";
+                                rule-title.text = "";
+                                rule-icon.text = "";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if root.tab == 4: Rectangle {
+            vertical-stretch: 1;
+            ScrollView {
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 18px;
+                    alignment: start;
+                    SectionTitle { text: "Bar"; }
+                    Opt {
+                        title: "App icon size";
+                        hint: "Size of window icons on the bar (pixels).";
+                        HorizontalLayout {
+                            spacing: 12px;
+                            SpinBox {
+                                width: 200px;
+                                minimum: 12;
+                                maximum: 32;
+                                value: root.icon-size;
+                                edited(v) => { root.icon-size = v; root.ui-int("icon_size", v); }
+                            }
+                            ResetBtn { visible: root.icon-size != 22; clicked => { root.reset-field("icon_size"); } }
+                            Rectangle { }
+                        }
+                    }
+                    Opt {
+                        title: "Bar height";
+                        hint: "Defaults to the Windows taskbar height.";
+                        HorizontalLayout {
+                            spacing: 12px;
+                            SpinBox {
+                                width: 200px;
+                                minimum: 24;
+                                maximum: 120;
+                                increment: 2;
+                                value: root.bar-height;
+                                edited(v) => { root.bar-height = v; root.ui-int("bar_height", v); }
+                            }
+                            ResetBtn { visible: root.bar-height != root.bar-height-default; clicked => { root.reset-field("bar_height"); } }
+                            Rectangle { }
+                        }
+                    }
+                    Opt {
+                        title: "Clock date";
+                        hint: "Date shown before the time, today's date as an example.";
+                        HorizontalLayout {
+                            spacing: 12px;
+                            Segmented {
+                                pad: 20px;
+                                options: root.date-options;
+                                current: root.clock-date;
+                                selected(i) => { root.clock-date = i; root.ui-int("clock_date", i); }
+                            }
+                            ResetBtn { visible: root.clock-date != 0; clicked => { root.reset-field("clock_date"); } }
+                            Rectangle { }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 12px;
+                        CheckBox {
+                            width: 230px;
+                            text: "Show seconds in the clock";
+                            checked: root.clock-seconds;
+                            toggled => { root.clock-seconds = self.checked; root.ui-bool("clock_seconds", self.checked); }
+                        }
+                        ResetBtn { visible: root.clock-seconds; clicked => { root.reset-field("clock_seconds"); } }
+                        Rectangle { }
+                    }
+                    Opt {
+                        title: "Popup animations";
+                        HorizontalLayout {
+                            spacing: 12px;
+                            Segmented {
+                                options: ["Off", "Fast", "Normal", "Slow"];
+                                current: root.anim-mode;
+                                selected(i) => { root.anim-mode = i; root.ui-int("anim_mode", i); }
+                            }
+                            ResetBtn { visible: root.anim-mode != 2; clicked => { root.reset-field("anim_mode"); } }
+                            Rectangle { }
+                        }
+                    }
+                    HorizontalLayout {
+                        Button { text: "Reset to defaults"; clicked => { root.reset-section(4); } }
+                        Rectangle { }
+                    }
+                }
+            }
+        }
+        if root.tab == 5: Rectangle {
+            vertical-stretch: 1;
+            ScrollView {
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 18px;
+                    alignment: start;
+                    SectionTitle { text: "Tray"; }
+                    Opt {
+                        title: "Tooltip delay (ms)";
+                        hint: "0 turns tray tooltips off.";
+                        HorizontalLayout {
+                            SpinBox {
+                                width: 200px;
+                                minimum: 0;
+                                maximum: 2000;
+                                increment: 50;
+                                value: root.tip-delay;
+                                edited(v) => { root.tip-delay = v; root.ui-int("tip_delay", v); }
+                            }
+                            ResetBtn { visible: root.tip-delay != 450; clicked => { root.reset-field("tip_delay"); } }
+                            Rectangle { }
+                        }
+                    }
+                    Opt {
+                        title: "Overflow columns";
+                        hint: "Maximum icons per row in the overflow flyout.";
+                        HorizontalLayout {
+                            SpinBox {
+                                width: 200px;
+                                minimum: 2;
+                                maximum: 10;
+                                value: root.tray-cols;
+                                edited(v) => { root.tray-cols = v; root.ui-int("tray_cols", v); }
+                            }
+                            ResetBtn { visible: root.tray-cols != 5; clicked => { root.reset-field("tray_cols"); } }
+                            Rectangle { }
+                        }
+                    }
+                    Text { color: Theme.text; text: "Tray apps"; }
+                    Caption { text: "Checked apps live in the overflow flyout instead of the bar."; }
+                    VerticalLayout {
+                        spacing: 4px;
+                        for a[i] in root.tray-apps: Rectangle {
+                            height: 34px;
+                            border-radius: 6px;
+                            background: Theme.hover;
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                spacing: 10px;
+                                Image {
+                                    source: a.icon;
+                                    width: 16px;
+                                    height: 16px;
+                                    y: (parent.height - self.height) / 2;
+                                }
+                                Text { text: a.exe; color: Theme.text; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
+                                CheckBox {
+                                    text: "Overflow";
+                                    checked: a.overflow;
+                                    y: 5px;
+                                    width: 110px;
+                                    toggled => { root.tray-app-toggled(i, self.checked); }
+                                }
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        add-app := LineEdit { placeholder-text: "app.exe"; horizontal-stretch: 1; }
+                        Button {
+                            text: "Add";
+                            clicked => {
+                                root.tray-app-add(add-app.text);
+                                add-app.text = "";
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        Button { text: "Reset to defaults"; clicked => { root.reset-section(5); } }
+                        Rectangle { }
+                    }
+                }
+            }
+        }
+        if root.tab == 6: Rectangle {
+            vertical-stretch: 1;
+            ScrollView {
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 14px;
+                    alignment: start;
+                    SectionTitle { text: "Quick settings"; }
+                    Caption { text: "Choose which sections the quick-settings popup shows."; }
+                    CheckBox {
+                        text: "Calendar";
+                        checked: root.show-cal;
+                        toggled => { root.show-cal = self.checked; root.ui-bool("show_calendar", self.checked); }
+                    }
+                    CheckBox {
+                        text: "Wi-Fi / Ethernet";
+                        checked: root.show-wifi;
+                        toggled => { root.show-wifi = self.checked; root.ui-bool("show_wifi", self.checked); }
+                    }
+                    CheckBox {
+                        text: "Bluetooth";
+                        checked: root.show-bt;
+                        toggled => { root.show-bt = self.checked; root.ui-bool("show_bluetooth", self.checked); }
+                    }
+                    CheckBox {
+                        text: "Volume mixer";
+                        checked: root.show-mixer;
+                        toggled => { root.show-mixer = self.checked; root.ui-bool("show_mixer", self.checked); }
+                    }
+                    Text { color: Theme.text; text: "Volume mixer filter"; }
+                    CheckBox {
+                        text: "Hide system sounds";
+                        checked: root.mixer-hide-system;
+                        toggled => { root.mixer-hide-system = self.checked; root.ui-bool("mixer_hide_system", self.checked); }
+                    }
+                    Caption { text: "Right-click an app name in the mixer to hide it. Hidden apps:"; }
+                    VerticalLayout {
+                        spacing: 4px;
+                        for h[i] in root.mixer-hidden: Rectangle {
+                            height: 30px;
+                            border-radius: 6px;
+                            background: Theme.hover;
+                            Text { x: 10px; text: h; color: Theme.text; vertical-alignment: center; }
+                            Rectangle {
+                                x: parent.width - 26px;
+                                y: 6px;
+                                width: 18px;
+                                height: 18px;
+                                border-radius: 9px;
+                                background: x-ta.has-hover ? #d04848 : Theme.popup-border;
+                                Text { text: "×"; color: x-ta.has-hover ? #ffffff : Theme.text; horizontal-alignment: center; vertical-alignment: center; }
+                                x-ta := TouchArea { clicked => { root.mixer-unhide(i); } }
+                            }
+                        }
+                    }
+                    if root.mixer-hidden.length == 0: Caption { text: "None."; }
+                    HorizontalLayout {
+                        Button { text: "Reset to defaults"; clicked => { root.reset-section(6); } }
+                        Rectangle { }
+                    }
+                }
+            }
+        }
+        if root.tab == 7: Rectangle {
+            vertical-stretch: 1;
+            ScrollView {
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 14px;
+                    alignment: start;
+                    SectionTitle { text: "Profiles"; }
+                    Caption { text: "A profile is a snapshot of every setting: theme, bar, tray, quick settings, monitors, pins, icon-only apps and icon rules."; }
+                    if root.confirm-profile != "": Rectangle {
+                        height: 64px;
+                        border-radius: 8px;
+                        background: Theme.selected;
+                        border-width: 1px;
+                        border-color: Theme.accent;
+                        HorizontalLayout {
+                            padding: 12px;
+                            spacing: 10px;
+                            Text {
+                                horizontal-stretch: 1;
+                                color: Theme.text;
+                                wrap: word-wrap;
+                                vertical-alignment: center;
+                                text: "Current settings are not saved as a profile and will be lost. Switch to \"" + root.confirm-profile + "\" anyway?";
+                            }
+                            Button { text: "Switch"; clicked => { root.profile-confirm(); } }
+                            Button { text: "Cancel"; clicked => { root.profile-cancel(); } }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        LineEdit {
+                            horizontal-stretch: 1;
+                            text <=> root.profile-name;
+                            placeholder-text: "Profile name";
+                        }
+                        Button { text: "Save current settings"; clicked => { root.profile-save(root.profile-name); } }
+                    }
+                    if root.profile-status != "": Caption { text: root.profile-status; }
+                    VerticalLayout {
+                        spacing: 6px;
+                        for p[i] in root.profiles: Rectangle {
+                            height: 44px;
+                            border-radius: 8px;
+                            background: Theme.hover;
+                            border-width: p == root.active-profile ? 1px : 0px;
+                            border-color: Theme.accent;
+                            HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 6px;
+                                padding-top: 6px;
+                                padding-bottom: 6px;
+                                spacing: 8px;
+                                Text { horizontal-stretch: 1; text: p; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                                if p == root.active-profile: Text { text: "Active"; color: Theme.accent; vertical-alignment: center; }
+                                Button { text: "Load"; clicked => { root.profile-load(i); } }
+                                Button { text: "Delete"; clicked => { root.profile-delete(i); } }
+                            }
+                        }
+                    }
+                    if root.profiles.length == 0: Caption { text: "No saved profiles yet."; }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Button { text: "Export current settings..."; clicked => { root.profile-export(); } }
+                        Button { text: "Import profile..."; clicked => { root.profile-import(); } }
+                        Rectangle { }
+                    }
+                }
+            }
+        }
+        if root.tab == 3: Rectangle {
+            vertical-stretch: 1;
+            ScrollView {
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 18px;
+                    alignment: start;
+                    Segmented {
+                        options: root.mon-titles;
+                        current: root.mon-sel;
+                        selected(i) => { root.mon-sel = i; }
+                    }
+                    VerticalLayout {
+                    spacing: 0px;
+                    for m[mi] in root.monitors: VerticalLayout {
+                        visible: mi == root.mon-sel;
+                        height: mi == root.mon-sel ? self.preferred-height : 0px;
+                        spacing: 14px;
+                        VerticalLayout {
+                            spacing: 8px;
+                            Text { color: Theme.text; text: "Window buttons"; }
+                            HorizontalLayout {
+                                spacing: 20px;
+                                VerticalLayout {
+                                    width: 240px;
+                                    alignment: center;
+                                    Segmented {
+                                        options: ["Icon + label", "Icon only"];
+                                        current: m.show-labels ? 0 : 1;
+                                        selected(i) => { root.monitor-labels(mi, i == 0); }
+                                    }
+                                }
+                                LabelPreview { }
+                                Rectangle { }
+                            }
+                        }
+                        VerticalLayout {
+                            spacing: 8px;
+                            Text { color: Theme.text; text: "Start button"; }
+                            HorizontalLayout {
+                                spacing: 20px;
+                                VerticalLayout {
+                                    width: 240px;
+                                    alignment: center;
+                                    Segmented {
+                                        options: ["Shown", "Hidden"];
+                                        current: m.show-start ? 0 : 1;
+                                        selected(i) => { root.monitor-start(mi, i == 0); }
+                                    }
+                                }
+                                StartPreview { }
+                                Rectangle { }
+                            }
+                        }
+                        VerticalLayout {
+                            spacing: 8px;
+                            Text { color: Theme.text; text: "Clock"; }
+                            HorizontalLayout {
+                                spacing: 20px;
+                                VerticalLayout {
+                                    width: 240px;
+                                    alignment: center;
+                                    Segmented {
+                                        options: ["Shown", "Hidden"];
+                                        current: m.show-clock ? 0 : 1;
+                                        selected(i) => { root.monitor-clock(mi, i == 0); }
+                                    }
+                                }
+                                ClockPreview { clock-24h: root.clock-24h; }
+                                Rectangle { }
+                            }
+                        }
+                        VerticalLayout {
+                            spacing: 8px;
+                            Text { color: Theme.text; text: "Language button"; }
+                            Segmented {
+                                width: 240px;
+                                options: ["Shown", "Hidden"];
+                                current: m.show-lang ? 0 : 1;
+                                selected(i) => { root.monitor-part(mi, "lang", i == 0); }
+                            }
+                        }
+                        VerticalLayout {
+                            spacing: 8px;
+                            Text { color: Theme.text; text: "Tray icons"; }
+                            Segmented {
+                                width: 240px;
+                                options: ["Shown", "Hidden"];
+                                current: m.show-tray ? 0 : 1;
+                                selected(i) => { root.monitor-part(mi, "tray", i == 0); }
+                            }
+                        }
+                        VerticalLayout {
+                            spacing: 8px;
+                            Text { color: Theme.text; text: "Tray, language and clock side"; }
+                            HorizontalLayout {
+                                spacing: 20px;
+                                VerticalLayout {
+                                    width: 240px;
+                                    alignment: center;
+                                    Segmented {
+                                        options: ["Right", "Left"];
+                                        current: m.tray-left ? 1 : 0;
+                                        selected(i) => { root.monitor-side(mi, i == 1); }
+                                    }
+                                }
+                                Rectangle { }
+                            }
+                        }
+                        Text { color: Theme.text; text: "Pinned apps"; }
+                        IconGrid {
+                            items: m.pins;
+                            remove(pi) => { root.remove-pin(mi, pi); }
+                        }
+                    }
+                    }
+                }
+            }
+        }
+    }
+}
