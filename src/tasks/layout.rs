@@ -20,7 +20,8 @@ pub(super) fn label_button_width(title: &str) -> f32 {
         c.insert(title.to_string(), w);
         w
     });
-    (49.0 + text_w + 4.0).clamp(BTN_COMPACT, BTN_RUNNING)
+    // Slint's font renders a bit wider than the GDI measurement, so leave some slack.
+    (49.0 + text_w * 1.12 + 8.0).clamp(BTN_COMPACT, BTN_RUNNING)
 }
 
 // Width in logical pixels of `text` at 14px Segoe UI.

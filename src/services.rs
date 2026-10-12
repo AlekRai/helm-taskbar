@@ -20,7 +20,18 @@ fn item(name: &str, kind: usize, rows: &[&webservices::Status]) -> SvcItem {
         count: rows.iter().map(|s| s.unread as i32).sum(),
         meeting: rows.iter().any(|s| s.meeting),
         flashing: rows.iter().any(|s| s.attention),
+        icon: slint::Image::default(),
+        has_icon: false,
     }
+}
+
+fn row_item(kind: usize, s: &webservices::Status, scale: f32) -> SvcItem {
+    let mut it = item(&s.name, kind, &[s]);
+    if s.icon != 0 {
+        it.icon = cached_icon_image(HICON(s.icon as *mut c_void), scale);
+        it.has_icon = true;
+    }
+    it
 }
 
 fn group_rows<'a>(all: &'a [webservices::Status], key: &str) -> Vec<&'a webservices::Status> {
@@ -41,10 +52,10 @@ pub(crate) fn groups() -> Vec<SvcItem> {
 }
 
 // (row for the flyout, service id) for each service in a group.
-pub(crate) fn members(kind: usize) -> Vec<(SvcItem, String)> {
+pub(crate) fn members(kind: usize, scale: f32) -> Vec<(SvcItem, String)> {
     let all = webservices::status();
     let Some((key, _)) = GROUPS.get(kind) else { return Vec::new() };
-    group_rows(&all, key).into_iter().map(|s| (item(&s.name, kind, &[s]), s.id.clone())).collect()
+    group_rows(&all, key).into_iter().map(|s| (row_item(kind, s, scale), s.id.clone())).collect()
 }
 
 // Fills a bar's group model (empty when this bar doesn't show them) and returns the width it takes.

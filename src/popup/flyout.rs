@@ -67,11 +67,11 @@ pub(crate) fn toggle_services_flyout(monitor: isize, kind: usize) {
         .with(|t| t.closed_at.take())
         .is_some_and(|(t, k, m)| k == 3 && m == monitor && t.elapsed() < Duration::from_millis(400))
         && TRACK.with(|t| t.fly_kind.get()) == kind as i32;
-    let rows = crate::services::members(kind);
+    let Some((rect, scale)) = with_bar(monitor, |b| (b.rect, b.scale)) else { return };
+    let rows = crate::services::members(kind, scale);
     if recent || rows.is_empty() {
         return;
     }
-    let Some((rect, scale)) = with_bar(monitor, |b| (b.rect, b.scale)) else { return };
     TRACK.with(|t| {
         t.open_mon.set(monitor);
         t.fly_mon.set(monitor);
@@ -96,7 +96,7 @@ pub(crate) fn svc_row_clicked(index: usize) {
     if kind < 0 {
         return;
     }
-    let id = crate::services::members(kind as usize).get(index).map(|r| r.1.clone());
+    let id = crate::services::members(kind as usize, 1.0).get(index).map(|r| r.1.clone());
     close_popups();
     if let Some(id) = id {
         crate::services::open(&id);
@@ -117,7 +117,8 @@ fn refresh_group(kind: usize) {
     let Some(ui) = POPUPS.with(|p| p.try_borrow().ok().and_then(|p| p.as_ref().map(|p| p.fly.clone_strong()))) else {
         return;
     };
-    let rows: Vec<SvcItem> = crate::services::members(kind).into_iter().map(|r| r.0).collect();
+    let scale = with_bar(TRACK.with(|t| t.fly_mon.get()), |b| b.scale).unwrap_or(1.0);
+    let rows: Vec<SvcItem> = crate::services::members(kind, scale).into_iter().map(|r| r.0).collect();
     let current = ui.get_svcs();
     if current.row_count() != rows.len() {
         close_popups();

@@ -58,6 +58,8 @@ pub struct Status {
     pub unread: u32,
     pub meeting: bool,
     pub attention: bool,
+    // The window's current icon (an HICON, 0 until the page's favicon arrives).
+    pub icon: isize,
 }
 
 fn log(msg: &str) {
@@ -117,6 +119,9 @@ pub fn status() -> Vec<Status> {
                 unread: v.unread,
                 meeting: v.meeting,
                 attention: v.attention,
+                icon: unsafe {
+                    SendMessageW(v.hwnd, WM_GETICON, Some(WPARAM(ICON_BIG as usize)), Some(LPARAM(0))).0
+                },
             })
             .collect()
     })

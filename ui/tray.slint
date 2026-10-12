@@ -32,8 +32,15 @@ export component TrayFlyout inherits Window {
             background: Theme.accent;
             opacity: 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg));
         }
-        GroupIcon {
+        if !s.has-icon: GroupIcon {
             kind: s.kind;
+            x: 10px;
+            y: (parent.height - self.height) / 2;
+        }
+        if s.has-icon: Image {
+            source: s.icon;
+            width: 18px;
+            height: 18px;
             x: 10px;
             y: (parent.height - self.height) / 2;
         }
