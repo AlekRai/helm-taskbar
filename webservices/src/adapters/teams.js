@@ -18,7 +18,7 @@ if (window.top === window) {
 
   // Unread chats of the chat list; the "url" is a pseudo link that the host turns into a click or a deep link.
   function chatRows() {
-    return Array.from(document.querySelectorAll('[role="treeitem"][data-item-type="chat"]'));
+    return Array.from(document.querySelectorAll('[role="treeitem"][data-item-type="chat"], [role="treeitem"][data-item-type="slice"]'));
   }
   function convOf(e) {
     return (e.getAttribute('data-fui-tree-item-value') || '').split('|').pop();
@@ -28,6 +28,12 @@ if (window.top === window) {
     if (!chats.length) return;
     var rows = [];
     chats.forEach(function (e) {
+      // Quick views (followed threads, tag mentions) carry the Activity badge.
+      if (e.getAttribute('data-item-type') === 'slice') {
+        var n = (e.innerText.match(/\n(\d+)\s*(\n|$)/) || [])[1];
+        if (n) rows.push({ from: e.innerText.split('\n')[0] + ' (' + n + ')', title: '', url: 'teams-chat:' + convOf(e) });
+        return;
+      }
       if (!/chat_list_unread_text/.test(e.getAttribute('aria-labelledby') || '')) return;
       var ids = e.getAttribute('aria-labelledby').trim().split(/\s+/);
       var tid = ids.filter(function (i) { return /^title-chat-list-item/.test(i); })[0];

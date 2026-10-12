@@ -200,6 +200,10 @@ pub fn run_script(id: &str, script: &str) {
 pub fn open_panel(id: &str, url: &str, rect: (i32, i32, i32, i32)) {
     let deep;
     let url = match url.strip_prefix("teams-chat:") {
+        Some(conv) if conv.starts_with("slice-") => {
+            open_url(id, url);
+            return;
+        }
         Some(conv) => {
             deep = format!("https://teams.cloud.microsoft/l/chat/{conv}/conversations");
             deep.as_str()

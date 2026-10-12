@@ -8,6 +8,11 @@ function panelSel() {
   return '';
 }
 if (window.top === window) {
+  // Deep links first show a download page; pick the web app.
+  setInterval(function () {
+    var b = Array.from(document.querySelectorAll('button, a')).find(function (x) { return /^use the web app instead$/i.test(x.innerText.trim()); });
+    if (b) b.click();
+  }, 500);
   setInterval(function () {
     var sel = panelSel();
     if (!sel || document.getElementById('__panel') || !document.head) return;
