@@ -161,7 +161,8 @@ pub fn open_panel(id: &str, url: &str, rect: (i32, i32, i32, i32)) {
         }
     };
     unsafe {
-        let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), rect.0, rect.1, rect.2, rect.3, SWP_SHOWWINDOW);
+        let ok = SetWindowPos(hwnd, Some(HWND_TOPMOST), rect.0, rect.1, rect.2, rect.3, SWP_SHOWWINDOW);
+        log(&format!("panel: show at {rect:?} -> {ok:?}, visible {}", IsWindowVisible(hwnd).as_bool()));
         let _ = SetForegroundWindow(hwnd);
     }
 }
@@ -565,6 +566,7 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
                 if (wp.0 & 0xffff) == 0 {
                     let panel = SVCS.with(|s| s.borrow().iter().any(|v| v.hwnd == hwnd && v.cfg.id == PANEL_ID));
                     if panel {
+                        log("panel: deactivated, hiding");
                         let _ = ShowWindow(hwnd, SW_HIDE);
                     }
                 }

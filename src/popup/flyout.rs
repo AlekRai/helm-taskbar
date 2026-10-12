@@ -134,7 +134,14 @@ pub(crate) fn mail_row_clicked(index: usize) {
         return;
     }
     let (w, group) = ((MAIL_PANEL_WIDTH * scale).round() as i32, (SVC_FLY_WIDTH * scale).round() as i32);
-    let h = ((MAIL_PANEL_HEIGHT * scale).round() as i32).min(r.bottom - screen.top - GAP);
+    let mut top = screen.top;
+    unsafe {
+        let mut mi = windows::Win32::Graphics::Gdi::MONITORINFO { cbSize: size_of::<windows::Win32::Graphics::Gdi::MONITORINFO>() as u32, ..Default::default() };
+        if windows::Win32::Graphics::Gdi::GetMonitorInfoW(windows::Win32::Graphics::Gdi::HMONITOR(mon as *mut _), &mut mi).as_bool() {
+            top = mi.rcMonitor.top;
+        }
+    }
+    let h = ((MAIL_PANEL_HEIGHT * scale).round() as i32).min(r.bottom - top - GAP);
     let x = if ui.get_mail_left() { r.right - group - w } else { r.left + group };
     close_popups();
     crate::services::open_panel(&id, &url, (x, r.bottom - h, w, h));
