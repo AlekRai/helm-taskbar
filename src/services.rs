@@ -79,8 +79,8 @@ pub(crate) fn open(id: &str) {
     webservices::open(id);
 }
 
-pub(crate) fn open_url(id: &str, url: &str) {
-    webservices::open_url(id, url);
+pub(crate) fn open_panel(id: &str, url: &str, rect: (i32, i32, i32, i32)) {
+    webservices::open_panel(id, url, rect);
 }
 
 // Unread mails of a service for the mail list: first row opens the service itself (no url).

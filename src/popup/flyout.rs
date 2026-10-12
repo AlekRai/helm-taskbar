@@ -53,6 +53,8 @@ fn show_fly(hwnd: HWND, rect: RECT, w: i32, h: i32, scale: f32) {
 
 const SVC_FLY_WIDTH: f32 = 220.0;
 const MAIL_FLY_WIDTH: f32 = 440.0;
+const MAIL_PANEL_WIDTH: f32 = 560.0;
+const MAIL_PANEL_HEIGHT: f32 = 760.0;
 
 fn svc_fly_size(n: usize, scale: f32) -> (i32, i32) {
     ((SVC_FLY_WIDTH * scale).round() as i32, ((n as f32 * 34.0 + 10.0) * scale).round() as i32)
@@ -112,17 +114,31 @@ pub(crate) fn svc_row_clicked(index: usize) {
     show_mail_list(id, mails, scale);
 }
 
-// Opens the n-th entry of the mail panel (row 0 opens the service itself).
+// Opens the n-th entry of the mail panel: row 0 opens the service itself, the others show that
+// mail alone in a panel where the list was.
 pub(crate) fn mail_row_clicked(index: usize) {
     let id = TRACK.with(|t| t.mail_id.borrow().clone());
     let url = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone());
-    close_popups();
-    match url {
-        Some(u) => crate::services::open_url(&id, &u),
-        None => crate::services::open(&id),
+    let Some(url) = url else {
+        close_popups();
+        crate::services::open(&id);
+        return;
+    };
+    let mon = TRACK.with(|t| t.fly_mon.get());
+    let Some((screen, scale)) = with_bar(mon, |b| (b.rect, b.scale)) else { return };
+    let Some((ui, hwnd)) = POPUPS.with(|p| p.borrow().as_ref().map(|p| (p.fly.clone_strong(), p.fly_hwnd))) else {
+        return;
+    };
+    let mut r = RECT::default();
+    if unsafe { GetWindowRect(hwnd, &mut r) }.is_err() {
+        return;
     }
+    let (w, group) = ((MAIL_PANEL_WIDTH * scale).round() as i32, (SVC_FLY_WIDTH * scale).round() as i32);
+    let h = ((MAIL_PANEL_HEIGHT * scale).round() as i32).min(r.bottom - screen.top - GAP);
+    let x = if ui.get_mail_left() { r.right - group - w } else { r.left + group };
+    close_popups();
+    crate::services::open_panel(&id, &url, (x, r.bottom - h, w, h));
 }
-
 fn show_mail_list(id: String, rows: Vec<(SvcItem, Option<String>)>, scale: f32) {
     let Some((ui, hwnd)) = POPUPS.with(|p| p.borrow().as_ref().map(|p| (p.fly.clone_strong(), p.fly_hwnd))) else {
         return;

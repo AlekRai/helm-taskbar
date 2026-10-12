@@ -132,10 +132,45 @@ pub fn open_url(id: &str, url: &str) {
     open(id);
 }
 
+const PANEL_ID: &str = "mailpanel";
+
+// Shows one mail on its own (no folders or toolbar) in a borderless window at `rect` (x, y, w, h).
+// It uses the profile of service `id` and hides itself when it loses focus.
+pub fn open_panel(id: &str, url: &str, rect: (i32, i32, i32, i32)) {
+    let Some(mut cfg) = SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == id).map(|v| v.cfg.clone())) else { return };
+    let existing = SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == PANEL_ID).map(|v| (v.hwnd, v.controller.clone())));
+    let hwnd = match existing {
+        Some((hwnd, controller)) => {
+            if let Some(web) = controller.and_then(|c| unsafe { c.CoreWebView2().ok() }) {
+                let u = wide(url);
+                unsafe {
+                    let _ = web.Navigate(PCWSTR(u.as_ptr()));
+                }
+            }
+            hwnd
+        }
+        None => {
+            cfg.id = PANEL_ID.into();
+            cfg.name = "Mail".into();
+            cfg.group = "_panel".into();
+            cfg.adapter = "panel".into();
+            cfg.url = url.into();
+            launch(&cfg, false);
+            let Some(h) = SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == PANEL_ID).map(|v| v.hwnd)) else { return };
+            h
+        }
+    };
+    unsafe {
+        let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), rect.0, rect.1, rect.2, rect.3, SWP_SHOWWINDOW);
+        let _ = SetForegroundWindow(hwnd);
+    }
+}
+
 pub fn status() -> Vec<Status> {
     SVCS.with(|s| {
         s.borrow()
             .iter()
+            .filter(|v| v.cfg.id != PANEL_ID)
             .map(|v| Status {
                 id: v.cfg.id.clone(),
                 name: v.cfg.name.clone(),
@@ -153,7 +188,8 @@ pub fn status() -> Vec<Status> {
 }
 
 fn launch(cfg: &ServiceCfg, show: bool) {
-    let Some(hwnd) = (unsafe { create_window(&cfg.name, show) }) else {
+    let panel = cfg.id == PANEL_ID;
+    let Some(hwnd) = (unsafe { create_window_ex(&cfg.name, show, panel) }) else {
         log(&format!("service {}: window creation failed", cfg.id));
         return;
     };
@@ -172,7 +208,8 @@ fn launch(cfg: &ServiceCfg, show: bool) {
     start_webview(cfg.clone(), hwnd);
 }
 
-unsafe fn create_window(title: &str, show: bool) -> Option<HWND> {
+// `panel` windows are borderless tool windows (no taskbar button) used for the mail panel.
+unsafe fn create_window_ex(title: &str, show: bool, panel: bool) -> Option<HWND> {
     unsafe {
         let hinst = GetModuleHandleW(None).ok()?;
         let class = WNDCLASSW {
@@ -184,9 +221,15 @@ unsafe fn create_window(title: &str, show: bool) -> Option<HWND> {
         };
         RegisterClassW(&class);
         let wide: Vec<u16> = title.encode_utf16().chain(Some(0)).collect();
-        let style = if show { WS_OVERLAPPEDWINDOW | WS_VISIBLE } else { WS_OVERLAPPEDWINDOW };
+        let (style, ex) = if panel {
+            (WS_POPUP | WS_BORDER, WS_EX_TOOLWINDOW | WS_EX_TOPMOST)
+        } else if show {
+            (WS_OVERLAPPEDWINDOW | WS_VISIBLE, WINDOW_EX_STYLE(0))
+        } else {
+            (WS_OVERLAPPEDWINDOW, WINDOW_EX_STYLE(0))
+        };
         let hwnd = CreateWindowExW(
-            WINDOW_EX_STYLE(0),
+            ex,
             CLASS,
             PCWSTR(wide.as_ptr()),
             style,
@@ -277,6 +320,7 @@ fn adapter_script(cfg: &ServiceCfg) -> String {
             "outlook" => include_str!("adapters/outlook.js"),
             "messenger" => include_str!("adapters/messenger.js"),
             "teams" => include_str!("adapters/teams.js"),
+            "panel" => include_str!("adapters/panel.js"),
             _ => include_str!("adapters/generic.js"),
         }
         .to_string()
@@ -518,6 +562,12 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
                 LRESULT(0)
             }
             WM_ACTIVATE => {
+                if (wp.0 & 0xffff) == 0 {
+                    let panel = SVCS.with(|s| s.borrow().iter().any(|v| v.hwnd == hwnd && v.cfg.id == PANEL_ID));
+                    if panel {
+                        let _ = ShowWindow(hwnd, SW_HIDE);
+                    }
+                }
                 if (wp.0 & 0xffff) != 0 {
                     SVCS.with(|s| {
                         if let Some(v) = s.borrow_mut().iter_mut().find(|v| v.hwnd == hwnd) {
