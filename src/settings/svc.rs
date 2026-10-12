@@ -33,6 +33,7 @@ fn populate_svc_opts(ui: &SettingsWindow) {
     ui.set_svc_opts(SvcOptsUi {
         flash: o.flash,
         sound: o.sound,
+        sound_name: o.sound_file.as_str().into(),
         settle: o.flash_settle_s as i32,
         guard: o.hover_guard_ms as i32,
         list: o.mail_list,
@@ -211,6 +212,29 @@ fn wire_svc_opts(ui: &SettingsWindow) {
                 o.sched_days &= !bit;
             }
         });
+    });
+    let w = ui.as_weak();
+    ui.on_svc_sound(move |action| {
+        let Some(ui) = w.upgrade() else { return };
+        match action {
+            0 => {
+                let owner = crate::shell::winit_hwnd(ui.window());
+                let Some(src) = super::profiles::pick_sound(owner) else { return };
+                let ext = src.extension().and_then(|e| e.to_str()).unwrap_or("wav").to_lowercase();
+                let name = format!("notify.{ext}");
+                let Some(dir) = crate::config::config_dir() else { return };
+                if let Some(old) = std::fs::read_dir(&dir).ok().into_iter().flatten().flatten().find(|e| e.file_name().to_string_lossy().starts_with("notify.")) {
+                    let _ = std::fs::remove_file(old.path());
+                }
+                if std::fs::copy(&src, dir.join(&name)).is_ok() {
+                    edit_svc(|o| o.sound_file = name);
+                    crate::services::notify_sound();
+                }
+            }
+            1 => crate::services::notify_sound(),
+            _ => edit_svc(|o| o.sound_file.clear()),
+        }
+        populate_svc_opts(&ui);
     });
     let w = ui.as_weak();
     ui.on_svc_reset(move || {

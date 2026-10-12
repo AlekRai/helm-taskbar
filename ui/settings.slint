@@ -62,6 +62,7 @@ export component SettingsWindow inherits Window {
     callback svc-opt-int(string, int);
     callback svc-opt-day(int, bool);
     callback svc-reset();
+    callback svc-sound(int);
 
     in-out property <int> icon-size: 22;
     in-out property <int> bar-height: 0;
@@ -695,6 +696,7 @@ export component SettingsWindow inherits Window {
             opt-int(k, v) => { root.svc-opt-int(k, v); }
             opt-day(d, v) => { root.svc-opt-day(d, v); }
             reset => { root.svc-reset(); }
+            sound-action(a) => { root.svc-sound(a); }
         }
         if root.tab == 3: Rectangle {
             vertical-stretch: 1;

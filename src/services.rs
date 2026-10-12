@@ -189,8 +189,23 @@ pub(crate) fn track_mail() {
     }
 }
 
-fn notify_sound() {
+// Plays the custom sound if one is set, else the Windows notification sound.
+pub(crate) fn notify_sound() {
     use windows::Win32::Media::Audio::{PlaySoundW, SND_ALIAS, SND_ASYNC, SND_NODEFAULT};
+    use windows::Win32::Media::Multimedia::mciSendStringW;
+    let file = load_svc().sound_file.clone();
+    let path = crate::config::config_dir().unwrap_or_default().join(&file);
+    if !file.is_empty() && path.is_file() {
+        let cmd = |s: String| {
+            let w = to_wide(&s);
+            unsafe { mciSendStringW(PCWSTR(w.as_ptr()), None, None) }
+        };
+        cmd("close helmsound".into());
+        if cmd(format!("open \"{}\" alias helmsound", path.display())) == 0 {
+            cmd("play helmsound from 0".into());
+            return;
+        }
+    }
     unsafe {
         let _ = PlaySoundW(w!("Notification.Default"), None, SND_ALIAS | SND_ASYNC | SND_NODEFAULT);
     }

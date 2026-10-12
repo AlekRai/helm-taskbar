@@ -6,13 +6,21 @@ pub(super) fn populate_profiles(ui: &SettingsWindow) {
 }
 
 pub(super) fn pick_file(owner: Option<HWND>, save: bool, default_name: &str) -> Option<PathBuf> {
+    pick_file_with(owner, save, default_name, "TOML files (*.toml)\0*.toml\0All files\0*.*\0\0", "toml\0")
+}
+
+pub(super) fn pick_sound(owner: Option<HWND>) -> Option<PathBuf> {
+    pick_file_with(owner, false, "", "Sounds (*.wav;*.mp3;*.m4a;*.wma)\0*.wav;*.mp3;*.m4a;*.wma\0All files\0*.*\0\0", "wav\0")
+}
+
+fn pick_file_with(owner: Option<HWND>, save: bool, default_name: &str, filter: &str, default_ext: &str) -> Option<PathBuf> {
     use windows::Win32::UI::Controls::Dialogs::*;
     let mut buf = [0u16; 520];
     for (i, c) in default_name.encode_utf16().take(256).enumerate() {
         buf[i] = c;
     }
-    let filter: Vec<u16> = "TOML files (*.toml)\0*.toml\0All files\0*.*\0\0".encode_utf16().collect();
-    let ext: Vec<u16> = "toml\0".encode_utf16().collect();
+    let filter: Vec<u16> = filter.encode_utf16().collect();
+    let ext: Vec<u16> = default_ext.encode_utf16().collect();
     let mut ofn = OPENFILENAMEW {
         lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
         hwndOwner: owner.unwrap_or_default(),

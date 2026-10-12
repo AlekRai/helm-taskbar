@@ -35,6 +35,7 @@ export component ServicesTab inherits Rectangle {
     callback opt-int(string, int);
     callback opt-day(int, bool);
     callback reset();
+    callback sound-action(int);
     property <int> new-group: 0;
 
     ScrollView {
@@ -160,6 +161,14 @@ export component ServicesTab inherits Rectangle {
                 text: "Play a sound when new mail arrives";
                 checked: root.so.sound;
                 toggled => { root.so.sound = self.checked; root.opt-bool("sound", self.checked); }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                Text { color: Theme.text-dim; text: root.so.sound-name == "" ? "Sound: Windows notification" : "Sound: " + root.so.sound-name; vertical-alignment: center; }
+                Button { text: "Choose file"; clicked => { root.sound-action(0); } }
+                Button { text: "Test"; clicked => { root.sound-action(1); } }
+                Button { text: "Use default"; clicked => { root.sound-action(2); } }
             }
             Caption { text: "Each service can also be switched off in the list above."; }
             NumOpt {

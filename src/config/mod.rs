@@ -138,6 +138,8 @@ pub(crate) struct SvcOpts {
     pub(crate) flash: bool,
     // Play the Windows notification sound when new mail arrives.
     pub(crate) sound: bool,
+    // Custom sound (wav, mp3, ...) kept in the config folder; empty uses the Windows sound.
+    pub(crate) sound_file: String,
     // Seconds after a service starts during which already-present mails don't count as new.
     pub(crate) flash_settle_s: u32,
     // A mail list ignores hover for this long after opening.
@@ -174,6 +176,7 @@ impl Default for SvcOpts {
         SvcOpts {
             flash: true,
             sound: true,
+            sound_file: String::new(),
             flash_settle_s: 20,
             hover_guard_ms: 700,
             mail_list: true,
