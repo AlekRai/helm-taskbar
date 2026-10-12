@@ -80,7 +80,7 @@ cargo run -p webservices --bin dev -- [--debug] [--show gmail1,teams|all] [--onl
 
 ## Data
 
-Everything lives under `%APPDATA%\Helm\` (an existing `rust_taskbar` folder is moved there on first run):
+Everything lives under `%APPDATA%\Helm\`:
 
 - `config.toml`: all settings; hand edits are picked up live
 - `profiles\*.toml`: saved setting profiles (Settings > Profiles)
