@@ -152,7 +152,7 @@ unsafe fn create_window(title: &str, show: bool) -> Option<HWND> {
         RegisterClassW(&class);
         let wide: Vec<u16> = title.encode_utf16().chain(Some(0)).collect();
         let style = if show { WS_OVERLAPPEDWINDOW | WS_VISIBLE } else { WS_OVERLAPPEDWINDOW };
-        CreateWindowExW(
+        let hwnd = CreateWindowExW(
             WINDOW_EX_STYLE(0),
             CLASS,
             PCWSTR(wide.as_ptr()),
@@ -166,7 +166,13 @@ unsafe fn create_window(title: &str, show: bool) -> Option<HWND> {
             Some(hinst.into()),
             None,
         )
-        .ok()
+        .ok()?;
+        if show {
+            // The process's first ShowWindow call obeys STARTUPINFO, so a hidden launch would hide this one.
+            let _ = ShowWindow(hwnd, SW_SHOW);
+            let _ = ShowWindow(hwnd, SW_SHOW);
+        }
+        Some(hwnd)
     }
 }
 
@@ -259,13 +265,25 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
         }));
         let _ = web.add_PermissionRequested(&perms, &mut token);
 
-        // Ordinary links go to the default browser; sign-in pop-ups stay inside the view.
-        let popups = NewWindowRequestedEventHandler::create(Box::new(|_, args| {
+        // Sign-in pop-ups load in the same view, same-site and Microsoft links open normally,
+        // and everything else goes to the default browser.
+        let own = site(&cfg.url);
+        let popups = NewWindowRequestedEventHandler::create(Box::new(move |sender, args| {
             let Some(args) = args else { return Ok(()) };
             let mut uri = PWSTR::null();
             args.Uri(&mut uri)?;
             let uri = take_pwstr(uri);
-            if !is_sign_in(&uri) && !uri.is_empty() && uri != "about:blank" {
+            if uri.is_empty() || uri == "about:blank" {
+                return Ok(());
+            }
+            let host = host_of(&uri);
+            if is_auth(&host) {
+                args.SetHandled(true)?;
+                if let Some(web) = sender {
+                    let u = wide(&uri);
+                    let _ = web.Navigate(PCWSTR(u.as_ptr()));
+                }
+            } else if site(&uri) != own && !is_microsoft(&host) {
                 args.SetHandled(true)?;
                 let u = wide(&uri);
                 ShellExecuteW(None, w!("open"), PCWSTR(u.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL);
@@ -286,12 +304,16 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
         }));
         let _ = web.add_WebMessageReceived(&messages, &mut token);
 
+        // Navigate only once the script is registered, or the first page load could miss it.
         let script = wide(&adapter_script(cfg));
-        let added = AddScriptToExecuteOnDocumentCreatedCompletedHandler::create(Box::new(|_, _| Ok(())));
+        let url = wide(&cfg.url);
+        let nav = web.clone();
+        let added = AddScriptToExecuteOnDocumentCreatedCompletedHandler::create(Box::new(move |_, _| {
+            let _ = nav.Navigate(PCWSTR(url.as_ptr()));
+            Ok(())
+        }));
         let _ = web.AddScriptToExecuteOnDocumentCreated(PCWSTR(script.as_ptr()), &added);
 
-        let url = wide(&cfg.url);
-        let _ = web.Navigate(PCWSTR(url.as_ptr()));
         let _ = controller.SetIsVisible(true);
         resize(&controller, hwnd);
     }
@@ -302,10 +324,27 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
     });
 }
 
-fn is_sign_in(uri: &str) -> bool {
-    const HOSTS: [&str; 6] = ["accounts.google.com", "login.microsoftonline.com", "login.live.com", "facebook.com", "microsoft.com", "office.com"];
-    let host = uri.split("://").nth(1).unwrap_or("").split('/').next().unwrap_or("");
-    HOSTS.iter().any(|h| host == *h || host.ends_with(&format!(".{h}")))
+fn host_of(uri: &str) -> String {
+    uri.split("://").nth(1).unwrap_or("").split(['/', '?', '#']).next().unwrap_or("").to_lowercase()
+}
+
+// The last two labels of the host, e.g. "google.com".
+fn site(uri: &str) -> String {
+    let host = host_of(uri);
+    let labels: Vec<&str> = host.split('.').collect();
+    labels[labels.len().saturating_sub(2)..].join(".")
+}
+
+fn host_in(host: &str, list: &[&str]) -> bool {
+    list.iter().any(|h| host == *h || host.ends_with(&format!(".{h}")))
+}
+
+fn is_auth(host: &str) -> bool {
+    host_in(host, &["accounts.google.com", "login.microsoftonline.com", "login.live.com", "facebook.com"])
+}
+
+fn is_microsoft(host: &str) -> bool {
+    host_in(host, &["microsoft.com", "office.com", "cloud.microsoft", "live.com", "sharepoint.com", "office365.com", "microsoftonline.com"])
 }
 
 // Messages from adapters: "unread|meeting" (meeting is 0 or 1) or "log|text".
