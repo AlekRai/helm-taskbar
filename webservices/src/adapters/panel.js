@@ -15,7 +15,16 @@ if (window.top === window) {
   setInterval(function () {
     var el = document.querySelector('.aeF');
     if (!el || !document.getElementById('__panel')) return;
-    var need = el.scrollWidth, have = window.innerWidth;
+    var have = window.innerWidth, need = el.scrollWidth;
+    var all = el.querySelectorAll('*');
+    for (var i = 0; i < all.length; i++) {
+      var e = all[i];
+      if (e.clientWidth > 5 && e.scrollWidth > e.clientWidth + 2) {
+        var ox = getComputedStyle(e).overflowX;
+        // The element keeps its margins, so the window grows by exactly the hidden part.
+        if (ox === 'auto' || ox === 'scroll') need = Math.max(need, have + e.scrollWidth - e.clientWidth);
+      }
+    }
     if (need > have + 2) window.chrome.webview.postMessage('panelw|' + Math.ceil(need * window.devicePixelRatio));
   }, 400);
 }
