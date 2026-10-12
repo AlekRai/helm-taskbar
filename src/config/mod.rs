@@ -136,6 +136,8 @@ impl UiCfg {
 pub(crate) struct SvcOpts {
     // Flash a service (and its new mails) when mail arrives.
     pub(crate) flash: bool,
+    // Play the Windows notification sound when new mail arrives.
+    pub(crate) sound: bool,
     // Seconds after a service starts during which already-present mails don't count as new.
     pub(crate) flash_settle_s: u32,
     // A mail list ignores hover for this long after opening.
@@ -171,6 +173,7 @@ impl Default for SvcOpts {
     fn default() -> Self {
         SvcOpts {
             flash: true,
+            sound: true,
             flash_settle_s: 20,
             hover_guard_ms: 700,
             mail_list: true,

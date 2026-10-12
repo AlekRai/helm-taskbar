@@ -173,14 +173,26 @@ thread_local! {
 // Called every tick: marks mails that appeared since start-up as flashing.
 pub(crate) fn track_mail() {
     let settle = std::time::Duration::from_secs(load_svc().flash_settle_s as u64);
+    let mut chime = false;
     for s in webservices::status() {
         let settled = FIRST.with(|f| f.borrow_mut().entry(s.id.clone()).or_insert_with(std::time::Instant::now).elapsed() > settle);
         for m in &s.mail {
             let fresh = SEEN.with(|seen| seen.borrow_mut().insert(m.url.clone()));
             if fresh && settled {
                 FLASH.with(|f| f.borrow_mut().insert(m.url.clone()));
+                chime |= s.flash;
             }
         }
+    }
+    if chime && load_svc().sound {
+        notify_sound();
+    }
+}
+
+fn notify_sound() {
+    use windows::Win32::Media::Audio::{PlaySoundW, SND_ALIAS, SND_ASYNC, SND_NODEFAULT};
+    unsafe {
+        let _ = PlaySoundW(w!("Notification.Default"), None, SND_ALIAS | SND_ASYNC | SND_NODEFAULT);
     }
 }
 

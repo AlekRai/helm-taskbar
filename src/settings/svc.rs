@@ -32,6 +32,7 @@ fn populate_svc_opts(ui: &SettingsWindow) {
     let o = load_svc();
     ui.set_svc_opts(SvcOptsUi {
         flash: o.flash,
+        sound: o.sound,
         settle: o.flash_settle_s as i32,
         guard: o.hover_guard_ms as i32,
         list: o.mail_list,
@@ -175,6 +176,7 @@ fn wire_svc_opts(ui: &SettingsWindow) {
     ui.on_svc_opt_bool(|key, on| {
         edit_svc(|o| match key.as_str() {
             "flash" => o.flash = on,
+            "sound" => o.sound = on,
             "mail_list" => o.mail_list = on,
             "mail_preview" => o.mail_preview = on,
             "open_in_panel" => o.open_in_panel = on,

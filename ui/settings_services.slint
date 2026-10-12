@@ -156,6 +156,11 @@ export component ServicesTab inherits Rectangle {
                 checked: root.so.flash;
                 toggled => { root.so.flash = self.checked; root.opt-bool("flash", self.checked); }
             }
+            CheckBox {
+                text: "Play a sound when new mail arrives";
+                checked: root.so.sound;
+                toggled => { root.so.sound = self.checked; root.opt-bool("sound", self.checked); }
+            }
             Caption { text: "Each service can also be switched off in the list above."; }
             NumOpt {
                 title: "Settle time (seconds)";
