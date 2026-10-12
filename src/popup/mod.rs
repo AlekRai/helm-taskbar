@@ -62,7 +62,6 @@ thread_local! {
 
 const MENU_WIDTH: f32 = 220.0;
 const TRAY_KIND: i32 = -1;
-const MAIL_KIND: i32 = -2;
 const CAL_HEIGHT_FULL: f32 = 420.0;
 
 // Calendar plus its 1px divider; zero when the calendar is turned off.
@@ -110,6 +109,7 @@ pub(crate) fn init_popups() {
     fly.on_hovered(fly_hovered);
     fly.on_svc_clicked(|i| svc_row_clicked(i as usize));
     fly.on_svc_hovered(svc_row_hovered);
+    fly.on_mail_clicked(|i| mail_row_clicked(i as usize));
     crate::calendar::wire(&quick);
     crate::start::wire(&start);
     crate::quick::wire(&quick);

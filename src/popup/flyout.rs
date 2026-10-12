@@ -33,6 +33,7 @@ pub(crate) fn toggle_tray_flyout(monitor: isize) {
         return;
     }
     ui.set_svcs(ModelRc::default());
+    ui.set_mail(ModelRc::default());
     let (cols, w, h) = fly_size(items.len(), scale);
     ui.set_cols(cols);
     ui.set_items(ModelRc::new(VecModel::from(items)));
@@ -86,25 +87,16 @@ pub(crate) fn toggle_services_flyout(monitor: isize, kind: usize) {
         return;
     }
     ui.set_items(ModelRc::default());
+    ui.set_mail(ModelRc::default());
     ui.set_svcs(ModelRc::new(VecModel::from(rows.into_iter().map(|r| r.0).collect::<Vec<_>>())));
     let (w, h) = svc_fly_size(ui.get_svcs().row_count(), scale);
     show_fly(hwnd, rect, w, h, scale);
 }
 
-// Opens the n-th row of the open services flyout: a service (Gmail with unread mail switches the
-// flyout to its mail list instead), or a mail in the list.
+// Opens the n-th row of the open services flyout: a service (Gmail with unread mail also gets a
+// mail panel next to the rows instead of opening right away).
 pub(crate) fn svc_row_clicked(index: usize) {
     let kind = TRACK.with(|t| t.fly_kind.get());
-    if kind == MAIL_KIND {
-        let id = TRACK.with(|t| t.mail_id.borrow().clone());
-        let url = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone());
-        close_popups();
-        match url {
-            Some(u) => crate::services::open_url(&id, &u),
-            None => crate::services::open(&id),
-        }
-        return;
-    }
     if kind < 0 {
         return;
     }
@@ -120,27 +112,40 @@ pub(crate) fn svc_row_clicked(index: usize) {
     show_mail_list(id, mails, scale);
 }
 
+// Opens the n-th entry of the mail panel (row 0 opens the service itself).
+pub(crate) fn mail_row_clicked(index: usize) {
+    let id = TRACK.with(|t| t.mail_id.borrow().clone());
+    let url = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone());
+    close_popups();
+    match url {
+        Some(u) => crate::services::open_url(&id, &u),
+        None => crate::services::open(&id),
+    }
+}
+
 fn show_mail_list(id: String, rows: Vec<(SvcItem, Option<String>)>, scale: f32) {
     let Some((ui, hwnd)) = POPUPS.with(|p| p.borrow().as_ref().map(|p| (p.fly.clone_strong(), p.fly_hwnd))) else {
         return;
     };
     hide_tip();
-    TRACK.with(|t| {
-        t.fly_kind.set(MAIL_KIND);
-        *t.mail_id.borrow_mut() = id;
-    });
-    let n = rows.len();
-    ui.set_svcs(ModelRc::new(VecModel::from(rows.into_iter().map(|r| r.0).collect::<Vec<_>>())));
-    let (w, h) = ((MAIL_FLY_WIDTH * scale).round() as i32, ((n as f32 * 34.0 + 10.0) * scale).round() as i32);
+    TRACK.with(|t| *t.mail_id.borrow_mut() = id);
+    let n = rows.len().max(ui.get_svcs().row_count());
+    let mon = TRACK.with(|t| t.fly_mon.get());
+    let screen = with_bar(mon, |b| b.rect).unwrap_or_default();
+    let w = ((SVC_FLY_WIDTH + MAIL_FLY_WIDTH) * scale).round() as i32;
+    let h = ((n as f32 * 34.0 + 10.0) * scale).round() as i32;
     unsafe {
         let mut r = RECT::default();
         if GetWindowRect(hwnd, &mut r).is_ok() {
-            let x = (r.left + (r.right - r.left) / 2 - w / 2).max(GAP);
+            // The panel grows away from the screen centre, keeping the service rows where they were.
+            let left = (r.left + r.right) / 2 > (screen.left + screen.right) / 2;
+            ui.set_mail_left(left);
+            ui.set_mail(ModelRc::new(VecModel::from(rows.into_iter().map(|r| r.0).collect::<Vec<_>>())));
+            let x = if left { r.right - w } else { r.left };
             let _ = SetWindowPos(hwnd, None, x, r.bottom - h, w, h, SWP_NOACTIVATE | SWP_NOZORDER);
         }
     }
 }
-
 // Keeps an open services flyout's counts and flash in sync.
 pub(crate) fn refresh_services_flyout() {
     let open = POPUPS.with(|p| p.try_borrow().ok().is_some_and(|p| p.as_ref().is_some_and(|p| p.fly_open)));

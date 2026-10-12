@@ -13,15 +13,59 @@ export component TrayFlyout inherits Window {
     in property <int> cols: 4;
     // When set, the flyout lists web services (one row each) instead of tray icons.
     in property <[SvcItem]> svcs;
+    // Unread mails shown in a second panel next to the service rows.
+    in property <[SvcItem]> mail;
+    in property <bool> mail-left;
     callback clicked(int, int);
     callback hovered(int, bool);
     callback svc-clicked(int);
     callback svc-hovered(int, bool);
+    callback mail-clicked(int);
+    property <length> gx: root.mail.length > 0 && root.mail-left ? 440px : 0px;
+    property <length> mx: root.mail-left ? 0px : 220px;
+
+    for m[i] in root.mail: Rectangle {
+        x: root.mx + 6px;
+        y: 6px + i * 34px;
+        width: 428px;
+        height: 32px;
+        border-radius: Theme.button-radius;
+        background: mta.pressed && mta.has-hover ? Theme.popup-pressed : mta.has-hover ? Theme.popup-hover : transparent;
+        animate background { duration: Theme.anim; easing: ease-out; }
+        if m.has-icon: Image {
+            source: m.icon;
+            width: 18px;
+            height: 18px;
+            x: 10px;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            x: 38px;
+            width: parent.width - 38px - 10px;
+            height: parent.height;
+            text: m.name;
+            color: Theme.text;
+            font-size: 13px;
+            overflow: elide;
+            vertical-alignment: center;
+        }
+        mta := TouchArea {
+            clicked => { root.mail-clicked(i); }
+        }
+    }
+
+    if root.mail.length > 0: Rectangle {
+        x: root.mail-left ? 440px : 220px;
+        y: 8px;
+        width: 1px;
+        height: parent.height - 16px;
+        background: Theme.popup-border;
+    }
 
     for s[i] in root.svcs: Rectangle {
-        x: 6px;
+        x: root.gx + 6px;
         y: 6px + i * 34px;
-        width: parent.width - 12px;
+        width: 208px;
         height: 32px;
         border-radius: Theme.button-radius;
         background: sta.pressed && sta.has-hover ? Theme.popup-pressed : sta.has-hover ? Theme.popup-hover : transparent;
