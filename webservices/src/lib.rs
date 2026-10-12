@@ -420,10 +420,7 @@ fn on_message(id: &str, msg: &str) {
         SVCS.with(|s| {
             if let Some(v) = s.borrow_mut().iter_mut().find(|v| v.cfg.id == id) {
                 v.cfg.name = b.to_string();
-                let t = wide(b);
-                unsafe {
-                    let _ = SetWindowTextW(v.hwnd, PCWSTR(t.as_ptr()));
-                }
+                set_title(v);
             }
         });
         return;
@@ -438,8 +435,18 @@ fn on_message(id: &str, msg: &str) {
             v.reported = true;
             v.unread = unread;
             v.meeting = meeting;
+            set_title(v);
         }
     });
+}
+
+// Window title (shown on the taskbar button): "(5) name" while something is unread.
+fn set_title(v: &Svc) {
+    let title = if v.unread > 0 { format!("({}) {}", v.unread, v.cfg.name) } else { v.cfg.name.clone() };
+    let t = wide(&title);
+    unsafe {
+        let _ = SetWindowTextW(v.hwnd, PCWSTR(t.as_ptr()));
+    }
 }
 
 unsafe fn resize(controller: &ICoreWebView2Controller, hwnd: HWND) {
