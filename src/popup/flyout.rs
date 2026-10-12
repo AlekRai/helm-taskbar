@@ -132,6 +132,10 @@ pub(crate) fn svc_row_middle(index: usize) {
 
 // Hovering a mail row stops it flashing.
 pub(crate) fn mail_row_hovered(index: usize) {
+    // Rows appearing under a still cursor while the window grows aren't a real hover.
+    if LIST_SHOWN.with(|l| l.get()).is_some_and(|t| t.elapsed().as_millis() < 700) {
+        return;
+    }
     let id = TRACK.with(|t| t.mail_id.borrow().clone());
     if let Some(url) = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone()) {
         crate::services::mail_seen(&id, &url);
@@ -190,11 +194,16 @@ pub(crate) fn mail_row_clicked(index: usize) {
     crate::services::open_panel(&id, &url, (x, r.bottom - h, w, h));
 }
 
+thread_local! {
+    static LIST_SHOWN: std::cell::Cell<Option<std::time::Instant>> = const { std::cell::Cell::new(None) };
+}
+
 fn show_mail_list(id: String, svc_row: usize, rows: Vec<(SvcItem, Option<String>)>, scale: f32) {
     let Some((ui, hwnd)) = POPUPS.with(|p| p.borrow().as_ref().map(|p| (p.fly.clone_strong(), p.fly_hwnd))) else {
         return;
     };
     hide_tip();
+    LIST_SHOWN.with(|l| l.set(Some(std::time::Instant::now())));
     TRACK.with(|t| *t.mail_id.borrow_mut() = id);
     ui.set_sel_svc(svc_row as i32);
     let n = rows.len().max(ui.get_svcs().row_count());
