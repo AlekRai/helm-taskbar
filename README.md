@@ -17,7 +17,10 @@ One dark, fast bar per monitor with your windows, tray, quick settings, launcher
 ![Helm taskbar](docs/bar.png)
 
 <div align="center">
-<img src="docs/quick-settings.png" width="320" alt="Calendar and quick settings">
+<img src="docs/quick-settings.png" width="300" alt="Calendar and quick settings">
+<img src="docs/start.png" width="300" alt="Start launcher">
+<br>
+<img src="docs/settings.png" width="620" alt="Settings window, Services tab">
 </div>
 
 ---
