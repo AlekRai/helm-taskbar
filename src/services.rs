@@ -47,6 +47,15 @@ fn group_rows<'a>(all: &'a [webservices::Status], key: &str) -> Vec<&'a webservi
     all.iter().filter(|s| s.group == key).collect()
 }
 
+// The work group only shows Monday to Friday, 06:00 to 17:00.
+fn group_visible(key: &str) -> bool {
+    if key != "work" {
+        return true;
+    }
+    let t = unsafe { GetLocalTime() };
+    (1..=5).contains(&t.wDayOfWeek) && (6..17).contains(&t.wHour)
+}
+
 // One button per group that has at least one running service.
 pub(crate) fn groups() -> Vec<SvcItem> {
     let all = webservices::status();
@@ -54,6 +63,9 @@ pub(crate) fn groups() -> Vec<SvcItem> {
         .iter()
         .enumerate()
         .filter_map(|(k, (key, name))| {
+            if !group_visible(key) {
+                return None;
+            }
             let rows = group_rows(&all, key);
             (!rows.is_empty()).then(|| item(name, k, &rows))
         })
