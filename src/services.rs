@@ -13,13 +13,22 @@ pub(crate) fn start() {
     webservices::start(&load_services(), false);
 }
 
+// Services with a mail list flash while any of their mails does; others use their attention flag.
+fn flash_of(s: &webservices::Status) -> bool {
+    if s.mail.is_empty() {
+        s.attention
+    } else {
+        FLASH.with(|f| s.mail.iter().any(|m| f.borrow().contains(&m.url)))
+    }
+}
+
 fn item(name: &str, kind: usize, rows: &[&webservices::Status]) -> SvcItem {
     SvcItem {
         name: name.into(),
         kind: kind as i32,
         count: rows.iter().map(|s| s.unread as i32).sum(),
         meeting: rows.iter().any(|s| s.meeting),
-        flashing: rows.iter().any(|s| s.attention),
+        flashing: rows.iter().any(|s| flash_of(s)),
         icon: slint::Image::default(),
         has_icon: false,
     }
@@ -117,8 +126,7 @@ pub(crate) fn track_mail() {
 }
 
 // Mouse over a flashing mail stops its flash.
-pub(crate) fn mail_seen(id: &str, url: &str) {
-    webservices::clear_attention(id);
+pub(crate) fn mail_seen(_id: &str, url: &str) {
     FLASH.with(|f| f.borrow_mut().remove(url));
 }
 
