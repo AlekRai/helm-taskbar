@@ -303,34 +303,52 @@ unsafe fn covered(hwnd: HWND) -> bool {
     }
 }
 
-// A foreground window covering its whole monitor (fullscreen video, games) means the bar must get out of the way.
+// The topmost large window on the bar's monitor covering the whole monitor (fullscreen video, games) means the bar must
+// get out of the way. Using z-order rather than the foreground window keeps it hidden while another monitor has focus.
 unsafe fn fullscreen_on(bar: HWND) -> bool {
+    use windows::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
     use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow};
     unsafe {
-        let fg = GetForegroundWindow();
-        if fg.0.is_null() || is_ours(fg) || !IsWindowVisible(fg).as_bool() {
-            return false;
-        }
-        let mut buf = [0u16; 32];
-        let n = GetClassNameW(fg, &mut buf) as usize;
-        let class = String::from_utf16_lossy(&buf[..n]);
-        if matches!(class.as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd") {
-            return false;
-        }
         let mon = MonitorFromWindow(bar, MONITOR_DEFAULTTONEAREST);
-        if MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST) != mon {
-            return false;
-        }
         let mut mi = MONITORINFO { cbSize: size_of::<MONITORINFO>() as u32, ..Default::default() };
-        let mut r = RECT::default();
-        if !GetMonitorInfoW(mon, &mut mi).as_bool() || GetWindowRect(fg, &mut r).is_err() {
+        if !GetMonitorInfoW(mon, &mut mi).as_bool() {
             return false;
         }
         let m = mi.rcMonitor;
-        r.left <= m.left && r.top <= m.top && r.right >= m.right && r.bottom >= m.bottom
+        let mon_area = (m.right - m.left) as i64 * (m.bottom - m.top) as i64;
+        let mut h = GetTopWindow(None).ok();
+        while let Some(w) = h {
+            h = GetWindow(w, GW_HWNDNEXT).ok();
+            if !IsWindowVisible(w).as_bool() || IsIconic(w).as_bool() || is_ours(w) {
+                continue;
+            }
+            let mut cloaked = 0u32;
+            let _ = DwmGetWindowAttribute(w, DWMWA_CLOAKED, &mut cloaked as *mut u32 as *mut c_void, 4);
+            if cloaked != 0 {
+                continue;
+            }
+            let mut buf = [0u16; 32];
+            let n = GetClassNameW(w, &mut buf) as usize;
+            let class = String::from_utf16_lossy(&buf[..n]);
+            if matches!(class.as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd") {
+                continue;
+            }
+            if MonitorFromWindow(w, MONITOR_DEFAULTTONEAREST) != mon {
+                continue;
+            }
+            let mut r = RECT::default();
+            if GetWindowRect(w, &mut r).is_err() {
+                continue;
+            }
+            let area = (r.right - r.left).max(0) as i64 * (r.bottom - r.top).max(0) as i64;
+            if area * 2 < mon_area {
+                continue;
+            }
+            return r.left <= m.left && r.top <= m.top && r.right >= m.right && r.bottom >= m.bottom;
+        }
+        false
     }
 }
-
 // Not an appbar: registering one changes the work area, which makes Explorer
 // shuffle desktop icons onto the other monitor. Instead we sit exactly where the
 // native taskbars were, and hide those.
