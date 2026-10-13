@@ -104,6 +104,62 @@ pub(crate) fn group_visible(key: &str) -> bool {
     o.sched_days >> t.wDayOfWeek & 1 == 1 && in_hours
 }
 
+// The calendar event to show: the one in progress (`true`), else the next one today, with the seconds left.
+fn meeting_now() -> Option<(webservices::CalEvent, i64, bool)> {
+    if !group_visible("work") {
+        return None;
+    }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64;
+    let t = unsafe { GetLocalTime() };
+    let day_end = now + 86400 - (t.wHour as i64 * 3600 + t.wMinute as i64 * 60 + t.wSecond as i64);
+    let events = webservices::calendar();
+    if let Some(e) = events.iter().find(|e| e.start <= now && now < e.end) {
+        return Some((e.clone(), e.end - now, true));
+    }
+    let e = events.iter().find(|e| e.start > now && e.start < day_end)?;
+    Some((e.clone(), e.start - now, false))
+}
+
+// Remaining time: hours and minutes, then minutes, then minutes and seconds in the last ten.
+fn remaining(secs: i64, left: bool) -> String {
+    let secs = secs.max(0);
+    let t = match secs {
+        3600.. => format!("{}h {:02}m", secs / 3600, secs % 3600 / 60),
+        600.. => format!("{}m", secs / 60),
+        _ => format!("{}m {:02}s", secs / 60, secs % 60),
+    };
+    if left { format!("{t} left") } else { t }
+}
+
+// Shows the meeting countdown on the bar and returns the width it takes.
+fn sync_meeting(ui: &BarWindow, on: bool) -> f32 {
+    let Some((event, secs, current)) = on.then(meeting_now).flatten() else {
+        if ui.get_meet_w() != 0.0 {
+            ui.set_meet_w(0.0);
+        }
+        return 0.0;
+    };
+    let color = match (current, secs) {
+        (true, _) => (0x3e, 0xcf, 0x6e),
+        (_, 0..600) => (0xff, 0x45, 0x3a),
+        (_, 600..3600) => (0xf5, 0xa5, 0x24),
+        _ => (0x7a, 0xa2, 0xf7),
+    };
+    let time = remaining(secs, current);
+    // Snapped so the width only changes now and then (the text itself ticks every second near the end).
+    let snap = |w: f32| (w / 12.0).ceil() * 12.0;
+    let time_w = snap(unsafe { crate::tasks::measure_text(&time) } * 1.25);
+    let title_w = (unsafe { crate::tasks::measure_text(&event.title) } * 1.12 + 4.0).min(220.0);
+    let total = time_w + 8.0 + title_w + 12.0;
+    ui.set_meet_time(time.into());
+    ui.set_meet_title(event.title.into());
+    ui.set_meet_color(slint::Color::from_rgb_u8(color.0, color.1, color.2).into());
+    ui.set_meet_time_w(time_w);
+    ui.set_meet_title_w(title_w);
+    ui.set_meet_w(total);
+    total
+}
+
 // One button per group that has at least one running service.
 pub(crate) fn groups() -> Vec<SvcItem> {
     let all = webservices::status();
@@ -130,7 +186,7 @@ pub(crate) fn members(kind: usize, scale: f32) -> Vec<(SvcItem, String)> {
 // Fills a bar's group model (empty when this bar doesn't show them) and returns the width it takes.
 pub(crate) fn sync_bar(ui: &BarWindow, on: bool) -> f32 {
     let items = if on { groups() } else { Vec::new() };
-    let width = items.len() as f32 * SVC_BTN;
+    let width = items.len() as f32 * SVC_BTN + sync_meeting(ui, on && !items.is_empty());
     let current = ui.get_svc();
     if current.row_count() == items.len() {
         for (i, it) in items.into_iter().enumerate() {

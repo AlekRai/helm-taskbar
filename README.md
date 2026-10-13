@@ -40,6 +40,7 @@ Helm hides the native taskbars and draws its own on every monitor. It is built w
 - Grouped bar buttons (Personal / Work) with unread badges and flashing for new mail
 - Unread mail lists with hover previews, mark as read, and a side panel that opens a single mail
 - An optional schedule, so a group such as Work is closed completely outside its hours
+- A meeting countdown on the bar while the Work group is active: the next Outlook meeting today (blue, amber under an hour, red under 10 minutes), or green with the time left while one is in progress
 - Per-site adapters are plain JavaScript in `webservices/src/adapters/` and can be overridden from `%APPDATA%\Helm\services\<id>.js`
 
 **Customisation**

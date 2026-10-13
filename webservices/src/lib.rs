@@ -144,7 +144,51 @@ pub fn start(cfgs: &[ServiceCfg], show: bool) {
             continue;
         }
         launch(cfg, show);
+        if cfg.adapter == "outlook" {
+            launch_calendar(cfg);
+        }
     }
+}
+
+fn cal_id(id: &str) -> String {
+    format!("{id}-cal")
+}
+
+// A hidden day-view page on the same profile as an Outlook service; it feeds `calendar()`.
+fn launch_calendar(outlook: &ServiceCfg) {
+    let id = cal_id(&outlook.id);
+    if SVCS.with(|s| s.borrow().iter().any(|v| v.cfg.id == id)) {
+        return;
+    }
+    let origin: String = outlook.url.splitn(4, '/').take(3).collect::<Vec<_>>().join("/");
+    let cfg = ServiceCfg {
+        id,
+        name: "Calendar".into(),
+        url: format!("{origin}/calendar/view/day"),
+        adapter: "outlookcal".into(),
+        flash: false,
+        ..outlook.clone()
+    };
+    launch(&cfg, false);
+}
+
+// One timed calendar event; `start` and `end` are unix seconds.
+#[derive(Clone, Debug)]
+pub struct CalEvent {
+    pub title: String,
+    pub start: i64,
+    pub end: i64,
+}
+
+thread_local! {
+    static EVENTS: RefCell<HashMap<String, Vec<CalEvent>>> = RefCell::new(HashMap::new());
+}
+
+// Today's events from every running calendar page, soonest first.
+pub fn calendar() -> Vec<CalEvent> {
+    let mut all: Vec<CalEvent> = EVENTS.with(|e| e.borrow().values().flatten().cloned().collect());
+    all.sort_by_key(|e| e.start);
+    all
 }
 
 // Closes every service of a group (and the mail panel if it uses their profile), so their browser processes exit.
@@ -157,6 +201,7 @@ pub fn stop_group(group: &str) {
         gone
     });
     for v in gone {
+        EVENTS.with(|e| e.borrow_mut().remove(&v.cfg.id));
         ENVS.with(|e| e.borrow_mut().remove(&v.cfg.profile));
         PENDING.with(|p| p.borrow_mut().remove(&v.cfg.profile));
         unsafe {
@@ -170,6 +215,10 @@ pub fn stop_group(group: &str) {
 
 // Closes one service's window and view; its profile stays loaded for the others that share it.
 pub fn stop_service(id: &str) {
+    if !id.ends_with("-cal") {
+        stop_service(&cal_id(id));
+    }
+    EVENTS.with(|e| e.borrow_mut().remove(id));
     let gone = SVCS.with(|s| {
         let mut s = s.borrow_mut();
         s.iter().position(|v| v.cfg.id == id).map(|i| s.remove(i))
@@ -346,7 +395,7 @@ pub fn status() -> Vec<Status> {
     SVCS.with(|s| {
         s.borrow()
             .iter()
-            .filter(|v| v.cfg.id != PANEL_ID)
+            .filter(|v| v.cfg.id != PANEL_ID && v.cfg.adapter != "outlookcal")
             .map(|v| Status {
                 id: v.cfg.id.clone(),
                 name: v.cfg.name.clone(),
@@ -496,6 +545,7 @@ fn adapter_script(cfg: &ServiceCfg) -> String {
         match cfg.adapter.as_str() {
             "gmail" => include_str!("adapters/gmail.js"),
             "outlook" => include_str!("adapters/outlook.js"),
+            "outlookcal" => include_str!("adapters/outlookcal.js"),
             "messenger" => include_str!("adapters/messenger.js"),
             "teams" => include_str!("adapters/teams.js"),
             "panel" => include_str!("adapters/panel.js"),
@@ -736,6 +786,17 @@ fn on_message(id: &str, msg: &str) {
                 v.mail = mail;
             }
         });
+        return;
+    }
+    if a == "events" {
+        let list = b
+            .lines()
+            .filter_map(|l| {
+                let mut p = l.split('\t');
+                Some(CalEvent { title: p.next()?.into(), start: p.next()?.parse().ok()?, end: p.next()?.parse().ok()? })
+            })
+            .collect();
+        EVENTS.with(|e| e.borrow_mut().insert(id.to_string(), list));
         return;
     }
     if a == "name" {

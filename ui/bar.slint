@@ -366,6 +366,13 @@ export component BarWindow inherits Window {
     in property <[SvcItem]> svc;
     callback svc-clicked(int);
     callback svc-hovered(int, bool);
+    // Next (or current) calendar meeting, left of the service buttons; meet-w is 0 when there is none.
+    in property <string> meet-time;
+    in property <string> meet-title;
+    in property <color> meet-color: Theme.accent;
+    in property <length> meet-w: 0px;
+    in property <length> meet-time-w: 0px;
+    in property <length> meet-title-w: 0px;
     // True when some tray icons live in the overflow flyout (a chevron button is shown).
     in property <bool> has-overflow: false;
     in property <string> clock;
@@ -430,6 +437,33 @@ export component BarWindow inherits Window {
         animate x { duration: Theme.anim; easing: ease-out; }
         clicked(b) => { root.tray-clicked(i, b); }
         hovered(h) => { root.tray-hovered(i, h); }
+    }
+
+    if root.meet-w > 0: Rectangle {
+        height: root.height;
+        width: root.meet-w;
+        x: root.mx(root.width - root.clock-reserve - (root.tray.length + (root.has-overflow ? 1 : 0)) * 28px - root.svc.length * 34px - root.meet-w, root.meet-w);
+        Text {
+            x: 0px;
+            width: root.meet-time-w;
+            height: parent.height;
+            text: root.meet-time;
+            color: root.meet-color;
+            font-size: 13px;
+            font-weight: 700;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+        }
+        Text {
+            x: root.meet-time-w + 8px;
+            width: root.meet-title-w;
+            height: parent.height;
+            text: root.meet-title;
+            color: Theme.text;
+            font-size: 13px;
+            overflow: elide;
+            vertical-alignment: center;
+        }
     }
 
     for s[i] in root.svc: SvcButton {
