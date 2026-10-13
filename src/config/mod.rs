@@ -171,6 +171,8 @@ pub(crate) struct SvcOpts {
     pub(crate) low_memory: bool,
     // DevTools port and adapter logging; applies at next start.
     pub(crate) dev: bool,
+    // Folder holding the Remote Desktop connect scripts; empty = Desktop\Bentley\Remote Desktop.
+    pub(crate) rdp_dir: String,
 }
 
 impl Default for SvcOpts {
@@ -197,6 +199,7 @@ impl Default for SvcOpts {
             sched_end: 17,
             low_memory: true,
             dev: false,
+            rdp_dir: String::new(),
         }
     }
 }

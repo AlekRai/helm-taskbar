@@ -244,15 +244,21 @@ pub(crate) fn members(kind: usize, scale: f32) -> Vec<(SvcItem, String)> {
     rows
 }
 
-// Remote Desktop launchers: .bat files on the Desktop, listed under the Work group when present.
+// Remote Desktop launchers: connect scripts run directly, listed under the Work group when present.
 const RDP: [(&str, &str, &str); 2] = [
-    ("rdp:all", "All monitors", "RDP_ALL.bat"),
-    ("rdp:one", "One monitor", "RDP_ONE.bat"),
+    ("rdp:all", "All monitors", "Connect-WorkPC.ps1"),
+    ("rdp:one", "One monitor", "Connect-WorkPC-SingleMonitor.ps1"),
 ];
 
 fn rdp_path(id: &str) -> Option<std::path::PathBuf> {
     let file = RDP.iter().find(|r| r.0 == id)?.2;
-    let path = std::path::PathBuf::from(std::env::var_os("USERPROFILE")?).join("Desktop").join(file);
+    let dir = load_svc().rdp_dir.clone();
+    let dir = if dir.is_empty() {
+        std::path::PathBuf::from(std::env::var_os("USERPROFILE")?).join("Desktop").join("Bentley").join("Remote Desktop")
+    } else {
+        std::path::PathBuf::from(dir)
+    };
+    let path = dir.join(file);
     path.exists().then_some(path)
 }
 
@@ -302,7 +308,11 @@ pub(crate) fn open(id: &str) {
     if id.starts_with("rdp:") {
         if let Some(path) = rdp_path(id) {
             use std::os::windows::process::CommandExt;
-            let _ = std::process::Command::new("cmd").arg("/c").arg(path).creation_flags(0x0800_0000).spawn();
+            let _ = std::process::Command::new("powershell")
+                .args(["-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File"])
+                .arg(path)
+                .creation_flags(0x0800_0000)
+                .spawn();
         }
         return;
     }
