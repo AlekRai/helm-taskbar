@@ -93,6 +93,9 @@ if (window.top === window) {
           setTimeout(function () { close(); readEvents(); }, 1500);
         }, 2500);
       };
+      // A response already given hides the buttons behind "Change".
+      var change = visible('button', /^\W*Change\W*$/);
+      if (change && !visible('button[aria-label^="Accept"]', null)) change.click();
       if (action === 'tentative') {
         until(function () { return Array.from(document.querySelectorAll('button[aria-label="More options"]')).filter(function (b) { return b.offsetParent && b.getBoundingClientRect().top > 300; })[0]; }, function (more) {
           more.click();
