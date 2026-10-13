@@ -33,10 +33,11 @@ component AppButton inherits Rectangle {
     property <bool> suppress-click: false;
     in property <length> area-w;
     in property <length> reserve: 88px;
+    in property <bool> side-left: false;
     // Bar edge on the left, clock/tray edge on the right (area starts `reserve` into the bar).
     property <length> raw-dx: ta.mouse-x - ta.pressed-x;
     property <length> drag-dx: dragging
-        ? max(-reserve - app.x * 1px, min(area-w + 4px - app.x * 1px - root.width, raw-dx))
+        ? max((side-left ? -4px : -reserve) - app.x * 1px, min((side-left ? area-w + reserve : area-w + 4px) - app.x * 1px - root.width, raw-dx))
         : 0px;
 
     x: app.x * 1px;
@@ -426,6 +427,7 @@ export component BarWindow inherits Window {
             app: app;
             area-w: parent.width;
             reserve: root.reserve;
+            side-left: root.side-left;
             clicked => { root.app-clicked(i); }
             right-clicked => { root.app-right-clicked(i); }
             dropped(c) => { root.app-reordered(i, c); }
