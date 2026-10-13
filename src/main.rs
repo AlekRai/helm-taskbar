@@ -105,6 +105,8 @@ fn main() {
     let refresh_timer = slint::Timer::default();
     refresh_timer.start(slint::TimerMode::Repeated, Duration::from_millis(500), tick);
     sync_clock_timer();
+    let lang_timer = slint::Timer::default();
+    lang_timer.start(slint::TimerMode::Repeated, Duration::from_millis(100), crate::quick::sync_lang);
 
     let _ = slint::run_event_loop_until_quit();
     shutdown_tray();

@@ -93,6 +93,18 @@ fn post_layout(fg: HWND, hkl: HKL) {
     }
 }
 
+// Pushes the language code to every bar (called on a fast timer so Win+Space and Alt+Shift show at once).
+pub(crate) fn sync_lang() {
+    let code = SharedString::from(bar_lang());
+    for m in bar_keys() {
+        with_bar(m, |b| {
+            if b.ui.get_lang() != code {
+                b.ui.set_lang(code.clone());
+            }
+        });
+    }
+}
+
 // Code of the active keyboard language, empty when only one is installed.
 pub(crate) fn bar_lang() -> String {
     if layouts().len() < 2 { String::new() } else { lang_code(current_layout()) }
