@@ -237,7 +237,42 @@ pub(crate) fn groups() -> Vec<SvcItem> {
 pub(crate) fn members(kind: usize, scale: f32) -> Vec<(SvcItem, String)> {
     let all = webservices::status();
     let Some((key, _)) = GROUPS.get(kind) else { return Vec::new() };
-    group_rows(&all, key).into_iter().map(|s| (row_item(kind, s, scale), s.id.clone())).collect()
+    let mut rows: Vec<_> = group_rows(&all, key).into_iter().map(|s| (row_item(kind, s, scale), s.id.clone())).collect();
+    if *key == "work" && !rows.is_empty() {
+        rows.extend(rdp_rows(kind, scale));
+    }
+    rows
+}
+
+// Remote Desktop launchers: .bat files on the Desktop, listed under the Work group when present.
+const RDP: [(&str, &str, &str); 2] = [
+    ("rdp:all", "RDP: all monitors", "RDP_ALL.bat"),
+    ("rdp:one", "RDP: one monitor", "RDP_ONE.bat"),
+];
+
+fn rdp_path(id: &str) -> Option<std::path::PathBuf> {
+    let file = RDP.iter().find(|r| r.0 == id)?.2;
+    let path = std::path::PathBuf::from(std::env::var_os("USERPROFILE")?).join("Desktop").join(file);
+    path.exists().then_some(path)
+}
+
+fn rdp_rows(kind: usize, scale: f32) -> Vec<(SvcItem, String)> {
+    let icon = unsafe { exe_icon(r"C:\Windows\System32\mstsc.exe") };
+    RDP.iter()
+        .filter(|r| rdp_path(r.0).is_some())
+        .map(|r| {
+            let it = SvcItem {
+                name: r.1.into(),
+                kind: kind as i32,
+                count: 0,
+                meeting: false,
+                flashing: false,
+                icon: cached_icon_image(icon, scale),
+                has_icon: !icon.0.is_null(),
+            };
+            (it, r.0.to_string())
+        })
+        .collect()
 }
 
 // Fills a bar's group model (empty when this bar doesn't show them) and returns the width it takes.
@@ -258,6 +293,13 @@ pub(crate) fn sync_bar(ui: &BarWindow, on: bool) -> f32 {
 }
 
 pub(crate) fn open(id: &str) {
+    if id.starts_with("rdp:") {
+        if let Some(path) = rdp_path(id) {
+            use std::os::windows::process::CommandExt;
+            let _ = std::process::Command::new("cmd").arg("/c").arg(path).creation_flags(0x0800_0000).spawn();
+        }
+        return;
+    }
     webservices::open(id);
 }
 
@@ -393,5 +435,9 @@ pub(crate) fn group_tip(kind: usize) -> String {
 pub(crate) fn row_tip(kind: usize, index: usize) -> String {
     let Some((key, _)) = GROUPS.get(kind) else { return String::new() };
     let all = webservices::status();
-    group_rows(&all, key).get(index).map(|s| describe(s)).unwrap_or_default()
+    let rows = group_rows(&all, key);
+    match rows.get(index) {
+        Some(s) => describe(s),
+        None => RDP.iter().filter(|r| rdp_path(r.0).is_some()).nth(index - rows.len()).map(|r| r.1.to_string()).unwrap_or_default(),
+    }
 }
