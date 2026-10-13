@@ -12,6 +12,15 @@ pub(super) fn hover_tip(monitor: isize, index: i32, on: bool, fly: bool) {
     hover_text(monitor, on, fly, move || crate::tray::tip_for(index, fly));
 }
 
+// Full date and time of the clock, e.g. "2026-10-13 Tuesday 09:47".
+pub(crate) fn clock_hovered(monitor: isize, on: bool) {
+    hover_text(monitor, on, false, || {
+        const DAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        let t = unsafe { GetLocalTime() };
+        format!("{:04}-{:02}-{:02} {} {:02}:{:02}", t.wYear, t.wMonth, t.wDay, DAYS[t.wDayOfWeek as usize % 7], t.wHour, t.wMinute)
+    });
+}
+
 pub(crate) fn svc_hovered(monitor: isize, kind: i32, on: bool) {
     hover_text(monitor, on, false, move || crate::services::group_tip(kind as usize));
 }

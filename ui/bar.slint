@@ -375,6 +375,7 @@ export component BarWindow inherits Window {
     in property <length> meet-title-w: 0px;
     callback meet-clicked();
     callback meet-right-clicked();
+    callback clock-hovered(bool);
     // True when some tray icons live in the overflow flyout (a chevron button is shown).
     in property <bool> has-overflow: false;
     in property <string> clock;
@@ -445,6 +446,15 @@ export component BarWindow inherits Window {
         height: root.height;
         width: root.meet-w;
         x: root.mx(root.width - root.clock-reserve - (root.tray.length + (root.has-overflow ? 1 : 0)) * 28px - root.svc.length * 34px - root.meet-w, root.meet-w);
+        Rectangle {
+            x: -6px;
+            y: 4px;
+            width: parent.width + 6px;
+            height: parent.height - 8px;
+            border-radius: Theme.button-radius;
+            background: meet-ta.pressed && meet-ta.has-hover ? Theme.pressed : meet-ta.has-hover ? Theme.hover : transparent;
+            animate background { duration: Theme.anim; easing: ease-out; }
+        }
         Text {
             x: 0px;
             width: root.meet-time-w;
@@ -466,7 +476,7 @@ export component BarWindow inherits Window {
             overflow: elide;
             vertical-alignment: center;
         }
-        TouchArea {
+        meet-ta := TouchArea {
             mouse-cursor: pointer;
             clicked => { root.meet-clicked(); }
             pointer-event(e) => {
@@ -555,6 +565,7 @@ export component BarWindow inherits Window {
             }
         }
         clock-ta := TouchArea {
+            changed has-hover => { root.clock-hovered(self.has-hover); }
             clicked => { root.clock-clicked(); }
             pointer-event(e) => {
                 if (e.button == PointerEventButton.right && e.kind == PointerEventKind.up) {
