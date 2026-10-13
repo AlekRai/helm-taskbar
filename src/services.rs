@@ -246,8 +246,8 @@ pub(crate) fn members(kind: usize, scale: f32) -> Vec<(SvcItem, String)> {
 
 // Remote Desktop launchers: .bat files on the Desktop, listed under the Work group when present.
 const RDP: [(&str, &str, &str); 2] = [
-    ("rdp:all", "RDP: all monitors", "RDP_ALL.bat"),
-    ("rdp:one", "RDP: one monitor", "RDP_ONE.bat"),
+    ("rdp:all", "All monitors", "RDP_ALL.bat"),
+    ("rdp:one", "One monitor", "RDP_ONE.bat"),
 ];
 
 fn rdp_path(id: &str) -> Option<std::path::PathBuf> {
@@ -256,23 +256,29 @@ fn rdp_path(id: &str) -> Option<std::path::PathBuf> {
     path.exists().then_some(path)
 }
 
-fn rdp_rows(kind: usize, scale: f32) -> Vec<(SvcItem, String)> {
+fn rdp_item(name: &str, kind: usize, scale: f32) -> SvcItem {
     let icon = unsafe { exe_icon(r"C:\Windows\System32\mstsc.exe") };
-    RDP.iter()
-        .filter(|r| rdp_path(r.0).is_some())
-        .map(|r| {
-            let it = SvcItem {
-                name: r.1.into(),
-                kind: kind as i32,
-                count: 0,
-                meeting: false,
-                flashing: false,
-                icon: cached_icon_image(icon, scale),
-                has_icon: !icon.0.is_null(),
-            };
-            (it, r.0.to_string())
-        })
-        .collect()
+    SvcItem {
+        name: name.into(),
+        kind: if kind == usize::MAX { -1 } else { kind as i32 },
+        count: 0,
+        meeting: false,
+        flashing: false,
+        icon: cached_icon_image(icon, scale),
+        has_icon: !icon.0.is_null(),
+    }
+}
+
+// A single "RDP" row; its options open in the side list like a service's unread mails.
+fn rdp_rows(kind: usize, scale: f32) -> Vec<(SvcItem, String)> {
+    if RDP.iter().all(|r| rdp_path(r.0).is_none()) {
+        return Vec::new();
+    }
+    vec![(rdp_item("Remote Desktop", kind, scale), "rdp".to_string())]
+}
+
+fn rdp_options(scale: f32) -> Vec<(SvcItem, Option<String>)> {
+    RDP.iter().filter(|r| rdp_path(r.0).is_some()).map(|r| (rdp_item(r.1, usize::MAX, scale), Some(r.0.to_string()))).collect()
 }
 
 // Fills a bar's group model (empty when this bar doesn't show them) and returns the width it takes.
@@ -388,6 +394,9 @@ pub(crate) fn mark_read_pending(url: &str) {
 
 // Unread mails of a service for the mail list, each with the url that opens it.
 pub(crate) fn mail_rows(id: &str, scale: f32) -> Vec<(SvcItem, Option<String>)> {
+    if id == "rdp" {
+        return rdp_options(scale);
+    }
     let all = webservices::status();
     let Some(s) = all.iter().find(|s| s.id == id) else { return Vec::new() };
     if s.mail.is_empty() {
@@ -438,6 +447,6 @@ pub(crate) fn row_tip(kind: usize, index: usize) -> String {
     let rows = group_rows(&all, key);
     match rows.get(index) {
         Some(s) => describe(s),
-        None => RDP.iter().filter(|r| rdp_path(r.0).is_some()).nth(index - rows.len()).map(|r| r.1.to_string()).unwrap_or_default(),
+        None => "Remote Desktop".to_string(),
     }
 }

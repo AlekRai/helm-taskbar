@@ -114,7 +114,7 @@ pub(crate) fn svc_row_clicked(index: usize) {
     let mon = TRACK.with(|t| t.fly_mon.get());
     let scale = with_bar(mon, |b| b.scale).unwrap_or(1.0);
     let Some(id) = crate::services::members(kind as usize, scale).get(index).map(|r| r.1.clone()) else { return };
-    let mails = if load_svc().mail_list { crate::services::mail_rows(&id, scale) } else { Vec::new() };
+    let mails = if id == "rdp" || load_svc().mail_list { crate::services::mail_rows(&id, scale) } else { Vec::new() };
     if mails.is_empty() {
         close_popups();
         crate::services::open(&id);
@@ -160,6 +160,9 @@ pub(crate) fn mail_row_read(index: usize) {
     let id = TRACK.with(|t| t.mail_id.borrow().clone());
     let url = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone());
     let Some(url) = url else { return };
+    if id == "rdp" {
+        return;
+    }
     let arg = url.replace('\\', "\\\\").replace('\'', "\\'");
     webservices::run_script(&id, &format!("window.__markRead && window.__markRead('{arg}')"));
     crate::services::mark_read_pending(&url);
@@ -172,13 +175,17 @@ pub(crate) fn mail_row_middle(index: usize) {
     let url = crate::services::mail_rows(&id, 1.0).get(index).and_then(|r| r.1.clone());
     close_popups();
     if let Some(url) = url {
+        if id == "rdp" {
+            crate::services::open(&url);
+            return;
+        }
         crate::services::open_url(&id, &url);
     }
 }
 
 // Shows the n-th unread mail alone in a panel beside the flyout.
 pub(crate) fn mail_row_clicked(index: usize) {
-    if !load_svc().open_in_panel {
+    if TRACK.with(|t| t.mail_id.borrow().as_str() == "rdp") || !load_svc().open_in_panel {
         mail_row_middle(index);
         return;
     }

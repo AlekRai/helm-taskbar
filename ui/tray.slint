@@ -79,7 +79,7 @@ export component TrayFlyout inherits Window {
             }
         }
         // Marks the mail read without opening it.
-        Rectangle {
+        if m.kind >= 0: Rectangle {
             x: parent.width - 32px;
             y: 4px;
             width: 24px;
