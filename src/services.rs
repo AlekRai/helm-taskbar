@@ -134,6 +134,46 @@ fn meeting_now() -> Option<(webservices::CalEvent, i64, bool)> {
     Some((e.clone(), e.start - now, false))
 }
 
+// Clicking the chip joins the meeting through its Teams link.
+pub(crate) fn meeting_clicked() {
+    if let Some((event, _, _)) = meeting_now() {
+        webservices::meeting_action("join", &event);
+    }
+}
+
+// Right click: join, or change the response. A tentative or declined meeting drops off the bar.
+pub(crate) fn meeting_right_clicked(monitor: isize) {
+    if let Some((event, _, _)) = meeting_now() {
+        crate::popup::open_menu(monitor, vec![Box::new(MeetProvider(event))], AppInfo::default());
+    }
+}
+
+struct MeetProvider(webservices::CalEvent);
+
+impl MenuProvider for MeetProvider {
+    fn applies_to(&self, _: &AppInfo) -> bool {
+        true
+    }
+    fn items(&self, _: &AppInfo) -> Vec<MenuItem> {
+        let item = |id, label: &str| MenuItem { id, label: label.into(), enabled: true };
+        vec![
+            item(1, "Join meeting"),
+            item(2, if self.0.accepted { "Accepted  ✓" } else { "Accept" }),
+            item(3, "Tentative"),
+            item(4, "Decline"),
+        ]
+    }
+    fn run(&self, id: usize, _: &AppInfo) {
+        let action = match id {
+            1 => "join",
+            2 => "accepted",
+            3 => "tentative",
+            _ => "declined",
+        };
+        webservices::meeting_action(action, &self.0);
+    }
+}
+
 // Remaining time: hours and minutes, then minutes, then minutes and seconds in the last ten.
 fn remaining(secs: i64, left: bool) -> String {
     let secs = secs.max(0);
@@ -167,7 +207,7 @@ fn sync_meeting(ui: &BarWindow, on: bool) -> f32 {
     let total = time_w + 8.0 + title_w + 12.0;
     ui.set_meet_time(time.into());
     ui.set_meet_title(event.title.into());
-    ui.set_meet_color(slint::Color::from_rgb_u8(color.0, color.1, color.2).into());
+    ui.set_meet_color(slint::Color::from_rgb_u8(color.0, color.1, color.2));
     ui.set_meet_time_w(time_w);
     ui.set_meet_title_w(title_w);
     ui.set_meet_w(total);

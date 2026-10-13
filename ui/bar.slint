@@ -373,6 +373,8 @@ export component BarWindow inherits Window {
     in property <length> meet-w: 0px;
     in property <length> meet-time-w: 0px;
     in property <length> meet-title-w: 0px;
+    callback meet-clicked();
+    callback meet-right-clicked();
     // True when some tray icons live in the overflow flyout (a chevron button is shown).
     in property <bool> has-overflow: false;
     in property <string> clock;
@@ -463,6 +465,15 @@ export component BarWindow inherits Window {
             font-size: 13px;
             overflow: elide;
             vertical-alignment: center;
+        }
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.meet-clicked(); }
+            pointer-event(e) => {
+                if (e.button == PointerEventButton.right && e.kind == PointerEventKind.up) {
+                    root.meet-right-clicked();
+                }
+            }
         }
     }
 

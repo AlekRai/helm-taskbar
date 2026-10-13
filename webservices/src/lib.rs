@@ -163,6 +163,7 @@ pub struct CalEvent {
     pub title: String,
     pub start: i64,
     pub end: i64,
+    pub accepted: bool,
 }
 
 thread_local! {
@@ -174,6 +175,15 @@ pub fn calendar() -> Vec<CalEvent> {
     let mut all: Vec<CalEvent> = EVENTS.with(|e| e.borrow().values().flatten().cloned().collect());
     all.sort_by_key(|e| e.start);
     all
+}
+
+// Asks the calendar page that listed `event` to "join" it or set the response ("accepted", "tentative", "declined").
+pub fn meeting_action(action: &str, event: &CalEvent) {
+    let id = EVENTS.with(|e| e.borrow().iter().find(|(_, l)| l.iter().any(|x| x.start == event.start && x.title == event.title)).map(|(k, _)| k.clone()));
+    if let Some(id) = id {
+        let title = event.title.replace('\\', "\\\\").replace('\'', "\\'");
+        run_script(&id, &format!("window.__meeting && window.__meeting('{action}', {}, '{title}')", event.start));
+    }
 }
 
 // Closes every service of a group (and the mail panel if one of them opened it). A profile's browser
@@ -710,10 +720,11 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
 
         let _ = controller.SetIsVisible(true);
         resize(&controller, hwnd);
-        if LOW_MEM.with(|l| l.get()) && !IsWindowVisible(hwnd).as_bool() {
-            if let Ok(web19) = web.cast::<ICoreWebView2_19>() {
-                let _ = web19.SetMemoryUsageTargetLevel(COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW);
-            }
+        if LOW_MEM.with(|l| l.get())
+            && !IsWindowVisible(hwnd).as_bool()
+            && let Ok(web19) = web.cast::<ICoreWebView2_19>()
+        {
+            let _ = web19.SetMemoryUsageTargetLevel(COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW);
         }
     }
     SVCS.with(|s| {
@@ -885,12 +896,25 @@ fn on_message(id: &str, msg: &str) {
         }
         return;
     }
+    if a == "join" {
+        // The calendar page found the meeting's Teams link; the default browser hands it to Teams.
+        if b.starts_with("https://teams.") {
+            let u = wide(b);
+            unsafe { ShellExecuteW(None, w!("open"), PCWSTR(u.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL) };
+        }
+        return;
+    }
     if a == "events" {
         let list = b
             .lines()
             .filter_map(|l| {
                 let mut p = l.split('\t');
-                Some(CalEvent { title: p.next()?.into(), start: p.next()?.parse().ok()?, end: p.next()?.parse().ok()? })
+                Some(CalEvent {
+                    title: p.next()?.into(),
+                    start: p.next()?.parse().ok()?,
+                    end: p.next()?.parse().ok()?,
+                    accepted: p.next() == Some("accepted"),
+                })
             })
             .collect();
         EVENTS.with(|e| e.borrow_mut().insert(id.to_string(), list));

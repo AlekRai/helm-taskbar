@@ -16,6 +16,7 @@ if (window.top === window) {
   // Today's timed events from the top bar's "upcoming events" button (Outlook keeps it current), as title, start, end (unix seconds).
   var LABEL = /^(.*?), (\d{1,2}:\d{2}(?: ?[AP]M)?) to (\d{1,2}:\d{2}(?: ?[AP]M)?), [A-Za-z]+, ([A-Za-z]+ \d{1,2}, \d{4})(.*)$/;
   var lastEvents = null;
+  var evs = {};
   function readEvents() {
     var btn = Array.from(document.querySelectorAll('button[aria-label]')).filter(function (b) { return /^\d+ upcoming events?\b/.test(b.getAttribute('aria-label')); })[0];
     // No button once the loaded page has no events left today.
@@ -23,14 +24,79 @@ if (window.top === window) {
     var today = new Date().toDateString(), out = [];
     (btn ? btn.getAttribute('aria-label') : '').replace(/^\d+ upcoming events?\s*/, '').split(/\s*\b\d+ of \d+ /).forEach(function (part) {
       var m = LABEL.exec(part);
-      if (!m || /^(Canceled|Cancelled|Declined):/i.test(m[1]) || /\b(Declined|Canceled|Cancelled)\b/.test(m[5])) return;
+      if (!m || /^(Canceled|Cancelled|Declined):/i.test(m[1]) || /\b(Declined|Canceled|Cancelled|Tentative)\b/.test(m[5])) return;
       var start = new Date(m[4] + ' ' + m[2]), end = new Date(m[4] + ' ' + m[3]);
       if (isNaN(start) || isNaN(end) || start.toDateString() !== today) return;
-      out.push([m[1].replace(/[\t\r\n|]+/g, ' ').trim(), Math.floor(start / 1000), Math.floor(end / 1000)].join('\t'));
+      var status = /\bAccepted\b/.test(m[5]) ? 'accepted' : 'none';
+      var title = m[1].replace(/[\t\r\n|]+/g, ' ').trim();
+      evs[Math.floor(start / 1000) + '\t' + title] = { title: m[1], time: m[2] };
+      out.push([title, Math.floor(start / 1000), Math.floor(end / 1000), status].join('\t'));
     });
     var k = out.join('\n');
     if (k !== lastEvents) { lastEvents = k; window.chrome.webview.postMessage('events|' + k); }
   }
+  // Drives the meeting chip: opens the event in the top bar's upcoming-events list, then joins it
+  // (posting its Teams link) or sets the response (accepted, tentative, declined).
+  function until(test, done, fail) {
+    var n = 0, t = setInterval(function () {
+      var r = test();
+      if (r) { clearInterval(t); done(r); } else if (++n > 70) { clearInterval(t); if (fail) fail(); }
+    }, 150);
+  }
+  function visible(sel, re) {
+    return Array.from(document.querySelectorAll(sel)).filter(function (b) {
+      return b.offsetParent && (!re || re.test(b.getAttribute('aria-label') || b.textContent));
+    })[0];
+  }
+  window.__meeting = function (action, start, title) {
+    var ev = evs[start + '\t' + title];
+    if (!ev) return window.__rt.log('meeting: unknown event');
+    var card = function () {
+      return Array.from(document.querySelectorAll('div[tabindex="0"][aria-label]')).filter(function (d) {
+        return d.offsetParent && d.getAttribute('aria-label').indexOf(ev.title + ', ' + ev.time + ' to ') >= 0;
+      })[0];
+    };
+    if (!card()) {
+      var btn = Array.from(document.querySelectorAll('button[aria-label]')).filter(function (b) { return /^\d+ upcoming events?\b/.test(b.getAttribute('aria-label')); })[0];
+      if (btn) btn.click();
+    }
+    var close = function () { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); };
+    until(card, function (c) {
+      c.click();
+      if (action === 'join') {
+        until(function () { return visible('button', /^\W*Join\W*$/); }, function (j) {
+          var urls = [], open = window.open;
+          window.open = function (u) { urls.push(String(u)); return null; };
+          j.click();
+          setTimeout(function () {
+            window.open = open;
+            if (urls[0]) window.chrome.webview.postMessage('join|' + urls[0]);
+            else window.__rt.log('meeting: join gave no link');
+            close();
+          }, 1200);
+        }, function () { window.__rt.log('meeting: no join button'); close(); });
+        return;
+      }
+      var finish = function () {
+        // Recurring events ask which occurrences to change; some responses ask to send it.
+        until(function () { return visible('[role="menuitem"]', /^\W*This event\W*$/); }, function (m) { m.click(); }, null);
+        setTimeout(function () {
+          var s = visible('button', /^\W*Send\W*$/);
+          if (s) s.click();
+          setTimeout(function () { close(); readEvents(); }, 1500);
+        }, 2500);
+      };
+      if (action === 'tentative') {
+        until(function () { return Array.from(document.querySelectorAll('button[aria-label="More options"]')).filter(function (b) { return b.offsetParent && b.getBoundingClientRect().top > 300; })[0]; }, function (more) {
+          more.click();
+          until(function () { return visible('[role="menuitem"]', /^\W*Tentative\W*$/); }, function (m) { m.click(); finish(); }, close);
+        }, close);
+      } else {
+        var label = action === 'accepted' ? 'Accept' : 'Decline';
+        until(function () { return visible('button[aria-label="' + label + '"]', null); }, function (b) { b.click(); finish(); }, close);
+      }
+    }, function () { window.__rt.log('meeting: event not in list'); close(); });
+  };
   setInterval(readEvents, 15000);
   setTimeout(readEvents, 8000);
 
