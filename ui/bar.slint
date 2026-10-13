@@ -98,18 +98,43 @@ component AppButton inherits Rectangle {
                 background: Theme.accent;
             }
         }
-        Text {
+        // Title: elided at rest; while hovered a too-long title slowly scrolls to its end, then
+        // slides quickly back once the pointer leaves.
+        Rectangle {
             visible: self.opacity > 0.01;
             opacity: app.running && app.label ? 1 : 0;
             animate opacity { duration: Theme.anim; easing: ease-out; }
             x: 40px;
             width: parent.width - 49px;
             height: parent.height;
-            text: app.title;
-            color: Theme.text;
-            font-size: 14px;
-            overflow: elide;
-            vertical-alignment: center;
+            clip: true;
+            property <length> overflow-w: max(0px, full.preferred-width - self.width);
+            property <float> prog: ta.has-hover && overflow-w > 0px && !dragging ? 1 : 0;
+            animate prog {
+                duration: ta.has-hover && overflow-w > 0px ? overflow-w / 40px * 1s : 250ms;
+                delay: ta.has-hover && overflow-w > 0px ? 400ms : 0ms;
+                easing: ease-in-out;
+            }
+            Text {
+                visible: !(ta.has-hover && overflow-w > 0px) && prog < 0.001;
+                width: parent.width;
+                height: parent.height;
+                text: app.title;
+                color: Theme.text;
+                font-size: 14px;
+                overflow: elide;
+                vertical-alignment: center;
+            }
+            full := Text {
+                visible: (ta.has-hover && overflow-w > 0px) || prog > 0.001;
+                x: -prog * overflow-w;
+                width: self.preferred-width;
+                height: parent.height;
+                text: app.title;
+                color: Theme.text;
+                font-size: 14px;
+                vertical-alignment: center;
+            }
         }
         // Taskbar progress (ITaskbarList3): -1 none, else 0..1; indeterminate pulses.
         Rectangle {
