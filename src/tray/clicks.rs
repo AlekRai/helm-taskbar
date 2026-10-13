@@ -83,6 +83,17 @@ pub(super) fn send_click(hwnd: isize, uid: u32, callback: u32, version: u32, but
             let _ = PostMessageW(Some(hwnd), callback, WPARAM(w), LPARAM(l));
         };
         if button == 0 {
+            // A second click on the same icon within the double-click time arrives as a double click, like Explorer sends it.
+            let dbl = LAST_LEFT.with(|l| {
+                let prev = l.replace(Some((hwnd.0 as isize, uid, std::time::Instant::now())));
+                prev.is_some_and(|(h, u, t)| h == hwnd.0 as isize && u == uid && t.elapsed().as_millis() as u32 <= GetDoubleClickTime())
+            });
+            if dbl {
+                LAST_LEFT.with(|l| l.set(None));
+                post(0x0203);
+                post(WM_LBUTTONUP);
+                return;
+            }
             post(WM_LBUTTONDOWN);
             post(WM_LBUTTONUP);
             if version >= 4 {
@@ -96,4 +107,8 @@ pub(super) fn send_click(hwnd: isize, uid: u32, callback: u32, version: u32, but
             }
         }
     }
+}
+
+thread_local! {
+    static LAST_LEFT: std::cell::Cell<Option<(isize, u32, std::time::Instant)>> = const { std::cell::Cell::new(None) };
 }
