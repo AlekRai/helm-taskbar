@@ -141,7 +141,7 @@ pub(crate) fn meeting_clicked() {
     }
 }
 
-// Right click: join, or change the response. A tentative or declined meeting drops off the bar.
+// Right click: join, or change the response. A declined or followed meeting drops off the bar.
 pub(crate) fn meeting_right_clicked(monitor: isize) {
     if let Some((event, _, _)) = meeting_now() {
         crate::popup::open_menu(monitor, vec![Box::new(MeetProvider(event))], AppInfo::default());
@@ -155,12 +155,14 @@ impl MenuProvider for MeetProvider {
         true
     }
     fn items(&self, _: &AppInfo) -> Vec<MenuItem> {
+        let mark = |s: &str, label: &str| if self.0.status == s { format!("{label}  ✓") } else { label.to_string() };
         let item = |id, label: &str| MenuItem { id, label: label.into(), enabled: true };
         vec![
             item(1, "Join meeting"),
-            item(2, if self.0.accepted { "Accepted  ✓" } else { "Accept" }),
-            item(3, "Tentative"),
+            item(2, &mark("accepted", "Accept")),
+            item(3, &mark("tentative", "Tentative")),
             item(4, "Decline"),
+            item(5, "Follow"),
         ]
     }
     fn run(&self, id: usize, _: &AppInfo) {
@@ -168,6 +170,7 @@ impl MenuProvider for MeetProvider {
             1 => "join",
             2 => "accepted",
             3 => "tentative",
+            5 => "follow",
             _ => "declined",
         };
         webservices::meeting_action(action, &self.0);

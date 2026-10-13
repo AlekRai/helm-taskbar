@@ -24,10 +24,10 @@ if (window.top === window) {
     var today = new Date().toDateString(), out = [];
     (btn ? btn.getAttribute('aria-label') : '').replace(/^\d+ upcoming events?\s*/, '').split(/\s*\b\d+ of \d+ /).forEach(function (part) {
       var m = LABEL.exec(part);
-      if (!m || /^(Canceled|Cancelled|Declined):/i.test(m[1]) || /\b(Declined|Canceled|Cancelled|Tentative)\b/.test(m[5])) return;
+      if (!m || /^(Canceled|Cancelled|Declined):/i.test(m[1]) || /\b(Declined|Canceled|Cancelled|Following|Follow)\b/.test(m[5])) return;
       var start = new Date(m[4] + ' ' + m[2]), end = new Date(m[4] + ' ' + m[3]);
       if (isNaN(start) || isNaN(end) || start.toDateString() !== today) return;
-      var status = /\bAccepted\b/.test(m[5]) ? 'accepted' : 'none';
+      var status = /\bAccepted\b/.test(m[5]) ? 'accepted' : /\bTentative\b/.test(m[5]) ? 'tentative' : 'none';
       var title = m[1].replace(/[\t\r\n|]+/g, ' ').trim();
       evs[Math.floor(start / 1000) + '\t' + title] = { title: m[1], time: m[2] };
       out.push([title, Math.floor(start / 1000), Math.floor(end / 1000), status].join('\t'));
@@ -92,8 +92,8 @@ if (window.top === window) {
           until(function () { return visible('[role="menuitem"]', /^\W*Tentative\W*$/); }, function (m) { m.click(); finish(); }, close);
         }, close);
       } else {
-        var label = action === 'accepted' ? 'Accept' : 'Decline';
-        until(function () { return visible('button[aria-label="' + label + '"]', null); }, function (b) { b.click(); finish(); }, close);
+        var label = { accepted: 'Accept', follow: 'Follow' }[action] || 'Decline';
+        until(function () { return visible('button[aria-label^="' + label + '"]', null); }, function (b) { b.click(); finish(); }, close);
       }
     }, function () { window.__rt.log('meeting: event not in list'); close(); });
   };

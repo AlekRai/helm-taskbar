@@ -25,12 +25,40 @@ pub(super) fn locale_text(hkl: HKL, kind: u32) -> String {
     String::from_utf16_lossy(&buf[..n as usize - 1])
 }
 
+thread_local! {
+    static LAST_LAYOUT: Cell<isize> = const { Cell::new(0) };
+}
+
+// Windows keeps a layout per app window. While the foreground is the desktop, the shell or Helm itself
+// (e.g. while a window is being minimized) its layout is meaningless, so the last app's layout stays.
+fn is_neutral(fg: HWND) -> bool {
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(fg, Some(&mut pid)) };
+    if pid == unsafe { GetCurrentProcessId() } {
+        return true;
+    }
+    let mut buf = [0u16; 64];
+    let n = unsafe { GetClassNameW(fg, &mut buf) } as usize;
+    matches!(
+        String::from_utf16_lossy(&buf[..n]).as_str(),
+        "Shell_TrayWnd" | "Shell_SecondaryTrayWnd" | "Progman" | "WorkerW" | "XamlExplorerHostIslandWindow"
+    )
+}
+
 // Keyboard layout of the focused app (the popups never take focus).
 pub(super) fn current_layout() -> HKL {
     unsafe {
         let fg = GetForegroundWindow();
+        if fg.0.is_null() || is_neutral(fg) {
+            let last = LAST_LAYOUT.with(Cell::get);
+            if last != 0 {
+                return HKL(last as *mut c_void);
+            }
+        }
         let tid = if fg.0.is_null() { 0 } else { GetWindowThreadProcessId(fg, None) };
-        GetKeyboardLayout(tid)
+        let hkl = GetKeyboardLayout(tid);
+        LAST_LAYOUT.with(|l| l.set(hkl.0 as isize));
+        hkl
     }
 }
 

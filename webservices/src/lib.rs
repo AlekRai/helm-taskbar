@@ -163,7 +163,7 @@ pub struct CalEvent {
     pub title: String,
     pub start: i64,
     pub end: i64,
-    pub accepted: bool,
+    pub status: String,
 }
 
 thread_local! {
@@ -913,7 +913,7 @@ fn on_message(id: &str, msg: &str) {
                     title: p.next()?.into(),
                     start: p.next()?.parse().ok()?,
                     end: p.next()?.parse().ok()?,
-                    accepted: p.next() == Some("accepted"),
+                    status: p.next().unwrap_or("none").into(),
                 })
             })
             .collect();
