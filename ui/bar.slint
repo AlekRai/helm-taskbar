@@ -298,17 +298,74 @@ export component MeetingGlyph inherits Rectangle {
     }
 }
 
+// Click, right click and horizontal drag for a button in the services strip (meeting chip and groups).
+// `pos` is the distance from the strip's right end to the button's right edge; drag reports go out as
+// the button centre's distance from that end, so they don't depend on which side the clock is on.
+component StripTouch inherits Rectangle {
+    in property <bool> side-left;
+    in property <length> pos;
+    in property <length> strip-w;
+    callback activated();
+    callback right-clicked();
+    callback hovered(bool);
+    callback drag-moved(length);
+    callback dropped(length);
+    out property <bool> dragging: false;
+    out property <bool> hover: ta.has-hover;
+    out property <bool> down: ta.pressed;
+    out property <length> dx: root.dragging ? (root.side-left ? -1 : 1) * root.udx : 0px;
+    property <bool> suppress: false;
+    property <length> udx: max(root.pos - (root.strip-w - root.width), min(root.pos, (root.side-left ? -1 : 1) * (ta.mouse-x - ta.pressed-x)));
+    property <length> center: root.pos + root.width / 2 - root.udx;
+
+    ta := TouchArea {
+        changed has-hover => { root.hovered(self.has-hover); }
+        clicked => {
+            if (!root.suppress) { root.activated(); }
+        }
+        moved => {
+            if (self.pressed && !root.dragging && abs(self.mouse-x - self.pressed-x) > 6px) {
+                root.dragging = true;
+                root.suppress = true;
+            }
+            if (root.dragging) {
+                root.drag-moved(root.center);
+            }
+        }
+        pointer-event(e) => {
+            if (e.button == PointerEventButton.left && e.kind == PointerEventKind.down) {
+                root.suppress = false;
+            }
+            if (e.button == PointerEventButton.left && e.kind == PointerEventKind.up && root.dragging) {
+                root.dropped(root.center);
+                root.dragging = false;
+            }
+            if (e.button == PointerEventButton.right && e.kind == PointerEventKind.up) {
+                root.right-clicked();
+            }
+        }
+    }
+}
+
 component SvcButton inherits Rectangle {
     in property <SvcItem> item;
+    in property <bool> side-left;
+    in property <length> pos;
+    in property <length> strip-w;
     callback clicked();
     callback hovered(bool);
+    callback drag-moved(length);
+    callback dropped(length);
     width: 34px;
+    z: ta.dragging ? 10 : 0;
 
     Rectangle {
+        x: ta.dx;
+        animate x { duration: ta.dragging ? 0ms : Theme.anim; easing: ease-out; }
         y: 4px;
         height: parent.height - 8px;
         border-radius: Theme.button-radius;
-        background: ta.pressed && ta.has-hover ? Theme.pressed : ta.has-hover ? Theme.hover : transparent;
+        background: ta.down && ta.hover ? Theme.pressed : ta.hover ? Theme.hover : transparent;
         animate background { duration: Theme.anim; easing: ease-out; }
         Rectangle {
             visible: root.item.flashing;
@@ -331,9 +388,14 @@ component SvcButton inherits Rectangle {
             y: parent.height - self.height - 2px;
         }
     }
-    ta := TouchArea {
-        changed has-hover => { root.hovered(self.has-hover); }
-        clicked => { root.clicked(); }
+    ta := StripTouch {
+        side-left: root.side-left;
+        pos: root.pos;
+        strip-w: root.strip-w;
+        activated => { root.clicked(); }
+        hovered(h) => { root.hovered(h); }
+        drag-moved(c) => { root.drag-moved(c); }
+        dropped(c) => { root.dropped(c); }
     }
 }
 component TrayButton inherits Rectangle {
@@ -392,6 +454,16 @@ export component BarWindow inherits Window {
     in property <[SvcItem]> svc;
     callback svc-clicked(int);
     callback svc-hovered(int, bool);
+    // Strip of meeting chip + group buttons: each button's distance from the strip's right end, and the strip width.
+    in property <[length]> svc-pos;
+    in property <length> meet-pos: 0px;
+    in property <length> strip-w: 0px;
+    // Key -1 is the meeting chip, otherwise the group kind.
+    callback strip-drag-moved(int, length);
+    callback strip-dropped(int, length);
+    pure function strip-right() -> length {
+        return root.width - root.clock-reserve - (root.tray.length + (root.has-overflow ? 1 : 0)) * 28px;
+    }
     // Next (or current) calendar meeting, left of the service buttons; meet-w is 0 when there is none.
     in property <string> meet-time;
     in property <string> meet-title;
@@ -472,18 +544,21 @@ export component BarWindow inherits Window {
     if root.meet-w > 0: Rectangle {
         height: root.height;
         width: root.meet-w;
-        x: root.mx(root.width - root.clock-reserve - (root.tray.length + (root.has-overflow ? 1 : 0)) * 28px - root.svc.length * 34px - root.meet-w, root.meet-w);
+        x: root.mx(root.strip-right() - root.meet-pos - root.meet-w, root.meet-w);
+        z: meet-ta.dragging ? 10 : 0;
+        animate x { duration: Theme.anim; easing: ease-out; }
         Rectangle {
-            x: -6px;
+            x: meet-ta.dx - 6px;
+            animate x { duration: meet-ta.dragging ? 0ms : Theme.anim; easing: ease-out; }
             y: 4px;
             width: parent.width + 6px;
             height: parent.height - 8px;
             border-radius: Theme.button-radius;
-            background: meet-ta.pressed && meet-ta.has-hover ? Theme.pressed : meet-ta.has-hover ? Theme.hover : transparent;
+            background: meet-ta.down && meet-ta.hover ? Theme.pressed : meet-ta.hover ? Theme.hover : transparent;
             animate background { duration: Theme.anim; easing: ease-out; }
         }
         Text {
-            x: 0px;
+            x: meet-ta.dx;
             width: root.meet-time-w;
             height: parent.height;
             text: root.meet-time;
@@ -494,7 +569,7 @@ export component BarWindow inherits Window {
             vertical-alignment: center;
         }
         Text {
-            x: root.meet-time-w + 8px;
+            x: meet-ta.dx + root.meet-time-w + 8px;
             width: root.meet-title-w;
             height: parent.height;
             text: root.meet-title;
@@ -503,24 +578,29 @@ export component BarWindow inherits Window {
             overflow: elide;
             vertical-alignment: center;
         }
-        meet-ta := TouchArea {
-            mouse-cursor: pointer;
-            clicked => { root.meet-clicked(); }
-            pointer-event(e) => {
-                if (e.button == PointerEventButton.right && e.kind == PointerEventKind.up) {
-                    root.meet-right-clicked();
-                }
-            }
+        meet-ta := StripTouch {
+            side-left: root.side-left;
+            pos: root.meet-pos;
+            strip-w: root.strip-w;
+            activated => { root.meet-clicked(); }
+            right-clicked => { root.meet-right-clicked(); }
+            drag-moved(c) => { root.strip-drag-moved(-1, c); }
+            dropped(c) => { root.strip-dropped(-1, c); }
         }
     }
 
     for s[i] in root.svc: SvcButton {
         item: s;
         height: root.height;
-        x: root.mx(root.width - root.clock-reserve - (root.tray.length + (root.has-overflow ? 1 : 0)) * 28px - (root.svc.length - i) * 34px, 34px);
+        x: root.mx(root.strip-right() - root.svc-pos[i] - 34px, 34px);
         animate x { duration: Theme.anim; easing: ease-out; }
+        side-left: root.side-left;
+        pos: root.svc-pos[i];
+        strip-w: root.strip-w;
         clicked => { root.svc-clicked(i); }
         hovered(h) => { root.svc-hovered(s.kind, h); }
+        drag-moved(c) => { root.strip-drag-moved(s.kind, c); }
+        dropped(c) => { root.strip-dropped(s.kind, c); }
     }
 
     if root.has-overflow: TrayButton {

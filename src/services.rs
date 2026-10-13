@@ -290,7 +290,9 @@ fn rdp_options(scale: f32) -> Vec<(SvcItem, Option<String>)> {
 // Fills a bar's group model (empty when this bar doesn't show them) and returns the width it takes.
 pub(crate) fn sync_bar(ui: &BarWindow, on: bool) -> f32 {
     let items = if on { groups() } else { Vec::new() };
-    let width = items.len() as f32 * SVC_BTN + sync_meeting(ui, on && !items.is_empty());
+    let meet_w = sync_meeting(ui, on && !items.is_empty());
+    let width = items.len() as f32 * SVC_BTN + meet_w;
+    sync_strip(ui, &items, meet_w);
     let current = ui.get_svc();
     if current.row_count() == items.len() {
         for (i, it) in items.into_iter().enumerate() {
@@ -302,6 +304,89 @@ pub(crate) fn sync_bar(ui: &BarWindow, on: bool) -> f32 {
         ui.set_svc(ModelRc::new(VecModel::from(items)));
     }
     width
+}
+
+thread_local! {
+    // The strip as last laid out, left to right: (key, width). Key -1 is the meeting chip, else the group kind.
+    static STRIP: RefCell<Vec<(i32, f32)>> = const { RefCell::new(Vec::new()) };
+    // Order being previewed while a button is dragged.
+    static STRIP_DRAG: RefCell<Option<Vec<i32>>> = const { RefCell::new(None) };
+}
+
+// Orders the present buttons: the dragged or saved order first, anything unlisted after in default order.
+fn strip_order(present: &[(i32, f32)]) -> Vec<(i32, f32)> {
+    let saved = STRIP_DRAG.with(|d| d.borrow().clone()).unwrap_or_else(|| load_svc().bar_order.clone());
+    let mut out: Vec<(i32, f32)> = saved.iter().filter_map(|k| present.iter().find(|p| p.0 == *k).copied()).collect();
+    for p in present {
+        if !out.iter().any(|o| o.0 == p.0) {
+            out.push(*p);
+        }
+    }
+    out
+}
+
+fn set_floats(model: ModelRc<f32>, values: Vec<f32>) -> ModelRc<f32> {
+    if model.row_count() == values.len() {
+        for (i, v) in values.into_iter().enumerate() {
+            if model.row_data(i) != Some(v) {
+                model.set_row_data(i, v);
+            }
+        }
+        model
+    } else {
+        ModelRc::new(VecModel::from(values))
+    }
+}
+
+// Positions the meeting chip and group buttons in the user's order, measured from the strip's right end.
+fn sync_strip(ui: &BarWindow, items: &[SvcItem], meet_w: f32) {
+    let mut present: Vec<(i32, f32)> = Vec::new();
+    if meet_w > 0.0 {
+        present.push((-1, meet_w));
+    }
+    present.extend(items.iter().map(|i| (i.kind, SVC_BTN)));
+    let order = strip_order(&present);
+    let mut from_right = std::collections::HashMap::new();
+    let mut acc = 0.0;
+    for (k, w) in order.iter().rev() {
+        from_right.insert(*k, acc);
+        acc += w;
+    }
+    let pos: Vec<f32> = items.iter().map(|i| from_right.get(&i.kind).copied().unwrap_or(0.0)).collect();
+    ui.set_svc_pos(set_floats(ui.get_svc_pos(), pos));
+    ui.set_meet_pos(from_right.get(&-1).copied().unwrap_or(0.0));
+    ui.set_strip_w(acc);
+    STRIP.with(|s| *s.borrow_mut() = order);
+}
+
+// Live preview while a strip button is dragged; `center` is its distance from the strip's right end.
+pub(crate) fn strip_drag_moved(monitor: isize, key: i32, center: f32) {
+    let layout = STRIP.with(|s| s.borrow().clone());
+    let mut acc = 0.0;
+    let mut centers: Vec<(i32, f32)> = Vec::new();
+    for (k, w) in layout.iter().rev() {
+        centers.push((*k, acc + w / 2.0));
+        acc += w;
+    }
+    let Some(&(target, _)) = centers.iter().min_by(|a, b| (a.1 - center).abs().total_cmp(&(b.1 - center).abs())) else { return };
+    let mut list: Vec<i32> = layout.iter().map(|p| p.0).collect();
+    let (Some(f), Some(t)) = (list.iter().position(|k| *k == key), list.iter().position(|k| *k == target)) else { return };
+    if f == t {
+        return;
+    }
+    let k = list.remove(f);
+    list.insert(t, k);
+    STRIP_DRAG.with(|d| *d.borrow_mut() = Some(list));
+    crate::tasks::push_ui(monitor);
+}
+
+// Drop: saves the previewed order.
+pub(crate) fn strip_dropped(monitor: isize, key: i32, center: f32) {
+    strip_drag_moved(monitor, key, center);
+    if let Some(list) = STRIP_DRAG.with(|d| d.borrow_mut().take()) {
+        update_svc(|s| s.bar_order = list);
+    }
+    crate::tasks::push_ui(monitor);
 }
 
 pub(crate) fn open(id: &str) {

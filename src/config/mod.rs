@@ -173,6 +173,8 @@ pub(crate) struct SvcOpts {
     pub(crate) dev: bool,
     // Folder holding the Remote Desktop connect scripts; empty = Desktop\Bentley\Remote Desktop.
     pub(crate) rdp_dir: String,
+    // Left-to-right order of the bar's service strip: -1 = meeting chip, 0/1 = group kind.
+    pub(crate) bar_order: Vec<i32>,
 }
 
 impl Default for SvcOpts {
@@ -200,6 +202,7 @@ impl Default for SvcOpts {
             low_memory: true,
             dev: false,
             rdp_dir: String::new(),
+            bar_order: Vec::new(),
         }
     }
 }

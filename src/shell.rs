@@ -150,6 +150,8 @@ unsafe fn create_bar(monitor: isize, rect: RECT) {
         ui.on_clock_hovered(move |on| crate::popup::clock_hovered(monitor, on));
         ui.on_meet_clicked(crate::services::meeting_clicked);
         ui.on_meet_right_clicked(move || crate::services::meeting_right_clicked(monitor));
+        ui.on_strip_drag_moved(move |k, c| crate::services::strip_drag_moved(monitor, k, c));
+        ui.on_strip_dropped(move |k, c| crate::services::strip_dropped(monitor, k, c));
         ui.on_svc_hovered(move |k, on| crate::popup::svc_hovered(monitor, k, on));
         ui.on_bar_pressed(|| {
             let _ = SetForegroundWindow(tray_hwnd());

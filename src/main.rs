@@ -41,6 +41,7 @@ fn refresh_all() {
 
 fn tick() {
     sync_clock_timer();
+    update_clocks();
     if reload_if_changed() {
         apply_to_state();
         crate::theme::apply_theme_all();
