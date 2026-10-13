@@ -15,10 +15,17 @@ if (window.top === window) {
 
   // Today's timed events from the top bar's "upcoming events" button (Outlook keeps it current), as title, start, end (unix seconds).
   var LABEL = /^(.*?), (\d{1,2}:\d{2}(?: ?[AP]M)?) to (\d{1,2}:\d{2}(?: ?[AP]M)?), [A-Za-z]+, ([A-Za-z]+ \d{1,2}, \d{4})(.*)$/;
+  // The top bar button lists the upcoming events ("N upcoming events ..."), or is just the event when there is only one.
+  function eventsButton() {
+    return Array.from(document.querySelectorAll('button[aria-label]')).filter(function (b) {
+      var l = b.getAttribute('aria-label');
+      return /^\d+ upcoming events?\b/.test(l) || (b.getAttribute('role') === 'menuitem' && LABEL.test(l));
+    })[0];
+  }
   var lastEvents = null;
   var evs = {};
   function readEvents() {
-    var btn = Array.from(document.querySelectorAll('button[aria-label]')).filter(function (b) { return /^\d+ upcoming events?\b/.test(b.getAttribute('aria-label')); })[0];
+    var btn = eventsButton();
     // No button once the loaded page has no events left today.
     if (!btn && !document.querySelector('[role="treeitem"][data-folder-name]')) return;
     var today = new Date().toDateString(), out = [];
@@ -57,7 +64,7 @@ if (window.top === window) {
       })[0];
     };
     if (!card()) {
-      var btn = Array.from(document.querySelectorAll('button[aria-label]')).filter(function (b) { return /^\d+ upcoming events?\b/.test(b.getAttribute('aria-label')); })[0];
+      var btn = eventsButton();
       if (btn) btn.click();
     }
     var close = function () { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); };
