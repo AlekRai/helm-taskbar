@@ -59,7 +59,7 @@ if (window.top === window) {
     var ev = evs[start + '\t' + title];
     if (!ev) return window.__rt.log('meeting: unknown event');
     var card = function () {
-      return Array.from(document.querySelectorAll('div[tabindex="0"][aria-label]')).filter(function (d) {
+      return Array.from(document.querySelectorAll('div[tabindex="0"][aria-label], button[role="menuitem"][aria-label]')).filter(function (d) {
         return d.offsetParent && d.getAttribute('aria-label').indexOf(ev.title + ', ' + ev.time + ' to ') >= 0;
       })[0];
     };
