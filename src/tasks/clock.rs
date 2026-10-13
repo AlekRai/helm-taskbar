@@ -55,6 +55,16 @@ pub(crate) fn update_clocks() {
                 unsafe {
                     use windows::Win32::Graphics::Gdi::{RDW_ALLCHILDREN, RDW_INVALIDATE, RDW_UPDATENOW, RedrawWindow};
                     let _ = RedrawWindow(Some(hwnd), None, None, RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+                    // Hovering is what revives a stalled bar, so nudge it the same way while the cursor is elsewhere.
+                    let mut pt = POINT::default();
+                    let mut r = RECT::default();
+                    let _ = GetCursorPos(&mut pt);
+                    let _ = GetWindowRect(hwnd, &mut r);
+                    if !PtInRect(&r, pt).as_bool() {
+                        use slint::platform::WindowEvent;
+                        ui.window().dispatch_event(WindowEvent::PointerMoved { position: slint::LogicalPosition::new(0.0, 0.0) });
+                        ui.window().dispatch_event(WindowEvent::PointerExited);
+                    }
                 }
             }
         }
