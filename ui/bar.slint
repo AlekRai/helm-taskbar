@@ -66,7 +66,7 @@ component AppButton inherits Rectangle {
             visible: app.flashing;
             border-radius: parent.border-radius;
             background: Theme.accent;
-            opacity: 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg));
+            opacity: app.flashing ? 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg)) : 0;
         }
 
         property <length> icon-cx: app.running && app.label ? 20px : parent.width / 2;
@@ -371,7 +371,7 @@ component SvcButton inherits Rectangle {
             visible: root.item.flashing;
             border-radius: parent.border-radius;
             background: Theme.accent;
-            opacity: 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg));
+            opacity: root.item.flashing ? 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg)) : 0;
         }
         GroupIcon {
             kind: root.item.kind;

@@ -13,6 +13,7 @@ mod config;
 mod icons;
 mod menu;
 mod popup;
+mod prof;
 mod prelude;
 mod quick;
 mod services;
@@ -40,31 +41,32 @@ fn refresh_all() {
 }
 
 fn tick() {
-    sync_clock_timer();
-    update_clocks();
-    if reload_if_changed() {
+    use prof::t;
+    t("tick: sync_clock_timer", sync_clock_timer);
+    t("tick: update_clocks", update_clocks);
+    if t("tick: reload_if_changed", reload_if_changed) {
         apply_to_state();
         crate::theme::apply_theme_all();
         STATE.with(|s| s.borrow_mut().file_icons.clear());
     }
     unsafe {
-        hide_native_taskbars();
-        sync_bars();
-        finalize_bars();
-        finalize_popups();
+        t("tick: hide_native_taskbars", || hide_native_taskbars());
+        t("tick: sync_bars", || sync_bars());
+        t("tick: finalize_bars", || finalize_bars());
+        t("tick: finalize_popups", || finalize_popups());
     }
-    raise_tray();
-    if prune_dead() {
+    t("tick: raise_tray", raise_tray);
+    if t("tick: prune_dead", prune_dead) {
         push_tray();
     }
-    forget_flashing_dead();
-    crate::services::schedule();
-    crate::services::track_mail();
-        crate::popup::refresh_services_flyout();
-    crate::settings::sync_open_window();
-    refresh_all();
+    t("tick: forget_flashing_dead", forget_flashing_dead);
+    t("tick: services::schedule", crate::services::schedule);
+    t("tick: services::track_mail", crate::services::track_mail);
+    t("tick: refresh_services_flyout", crate::popup::refresh_services_flyout);
+    t("tick: settings::sync_open_window", crate::settings::sync_open_window);
+    t("tick: refresh_all", refresh_all);
+    prof::report();
 }
-
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("--watchdog") {
@@ -107,7 +109,7 @@ fn main() {
     refresh_timer.start(slint::TimerMode::Repeated, Duration::from_millis(500), tick);
     sync_clock_timer();
     let lang_timer = slint::Timer::default();
-    lang_timer.start(slint::TimerMode::Repeated, Duration::from_millis(100), crate::quick::sync_lang);
+    lang_timer.start(slint::TimerMode::Repeated, Duration::from_millis(100), || prof::t("lang poll (100 ms)", crate::quick::sync_lang));
 
     let _ = slint::run_event_loop_until_quit();
     shutdown_tray();

@@ -52,7 +52,7 @@ export component TrayFlyout inherits Window {
             visible: m.flashing;
             border-radius: parent.border-radius;
             background: Theme.accent;
-            opacity: 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg));
+            opacity: m.flashing ? 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg)) : 0;
         }
         if m.has-icon: Image {
             source: m.icon;
@@ -127,7 +127,7 @@ export component TrayFlyout inherits Window {
             visible: s.flashing;
             border-radius: parent.border-radius;
             background: Theme.accent;
-            opacity: 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg));
+            opacity: s.flashing ? 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(animation-tick() / 1.2s * 360deg)) : 0;
         }
         if !s.has-icon: GroupIcon {
             kind: s.kind;

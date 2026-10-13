@@ -218,7 +218,7 @@ pub(crate) fn install_win_key_hook() {
     // so also watch the physical key state and toggle when the hook missed a press.
     let poll = slint::Timer::default();
     let state = std::cell::Cell::new((false, 0u32));
-    poll.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(15), move || unsafe {
+    poll.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(15), move || crate::prof::t("win key poll (15 ms)", || unsafe {
         use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
         let down = (GetAsyncKeyState(VK_LWIN.0 as i32) | GetAsyncKeyState(VK_RWIN.0 as i32)) as u16 & 0x8000 != 0;
         let (was_down, seen) = state.get();
@@ -232,7 +232,7 @@ pub(crate) fn install_win_key_hook() {
                 toggle_start_at_cursor();
             }
         }
-    });
+    }));
     std::mem::forget(poll);
 }
 pub(super) static HOOK_WIN_EVENTS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
