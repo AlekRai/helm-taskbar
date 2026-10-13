@@ -34,7 +34,7 @@ if (window.top === window) {
       if (!m || /^(Canceled|Cancelled|Declined):/i.test(m[1]) || /\b(Declined|Canceled|Cancelled|Following|Follow)\b/.test(m[5])) return;
       var start = new Date(m[4] + ' ' + m[2]), end = new Date(m[4] + ' ' + m[3]);
       if (isNaN(start) || isNaN(end) || start.toDateString() !== today) return;
-      var status = /\bAccepted\b/.test(m[5]) ? 'accepted' : /\bTentative\b/.test(m[5]) ? 'tentative' : 'none';
+      var status = /\b(Accepted|Busy)\b/.test(m[5]) ? 'accepted' : /\bTentative\b/.test(m[5]) ? 'tentative' : 'none';
       var title = m[1].replace(/[\t\r\n|]+/g, ' ').trim();
       evs[Math.floor(start / 1000) + '\t' + title] = { title: m[1], time: m[2] };
       out.push([title, Math.floor(start / 1000), Math.floor(end / 1000), status].join('\t'));
