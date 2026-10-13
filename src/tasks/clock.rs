@@ -48,10 +48,14 @@ pub(crate) fn update_clocks() {
     // A changed text also forces a repaint, in case a bar's window stopped redrawing (e.g. after sleep or a display change).
     let changed = LAST_CLOCK.with(|l| l.replace(parts.clone()) != parts);
     for m in bar_keys() {
-        if let Some(ui) = with_bar(m, |b| b.ui.clone_strong()) {
+        if let Some((ui, hwnd)) = with_bar(m, |b| (b.ui.clone_strong(), b.hwnd)) {
             set_clock(&ui, &parts);
             if changed {
                 ui.window().request_redraw();
+                unsafe {
+                    use windows::Win32::Graphics::Gdi::{RDW_ALLCHILDREN, RDW_INVALIDATE, RDW_UPDATENOW, RedrawWindow};
+                    let _ = RedrawWindow(Some(hwnd), None, None, RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+                }
             }
         }
     }
