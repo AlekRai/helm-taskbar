@@ -113,7 +113,7 @@ component AppButton inherits Rectangle {
             animate prog {
                 duration: ta.has-hover && overflow-w > 0px ? overflow-w / 40px * 1s : 250ms;
                 delay: ta.has-hover && overflow-w > 0px ? 400ms : 0ms;
-                easing: ease-in-out;
+                easing: linear;
             }
             Text {
                 visible: !(ta.has-hover && overflow-w > 0px) && prog < 0.001;
