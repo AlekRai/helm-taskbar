@@ -41,9 +41,19 @@ fn push_opts() {
         stale_hours: o.stale_hours,
         teams_activity: o.teams_activity,
         teams_threads: o.teams_threads,
+        avail: o.teams_available,
+        avail_now: avail_window_open(),
         poll_ms: o.poll_s.clamp(1, 120) * 1000,
         panel_widen: o.panel_widen,
     });
+}
+
+// Whether Teams should be held Available now: a schedule day, between the hold start and end hour.
+fn avail_window_open() -> bool {
+    let o = load_svc();
+    let t = unsafe { GetLocalTime() };
+    let hour = t.wHour as u32;
+    o.sched_days >> t.wDayOfWeek & 1 == 1 && (o.avail_start..o.avail_end).contains(&hour)
 }
 
 // Launches the services whose group is currently active (a scheduled group only runs in its hours).

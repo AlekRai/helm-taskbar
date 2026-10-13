@@ -157,6 +157,10 @@ pub(crate) struct SvcOpts {
     pub(crate) teams_activity: bool,
     // Teams: keep the hidden page on Followed threads and list its threads.
     pub(crate) teams_threads: bool,
+    // Teams: hold the Available status (no idle detection) on the schedule days from avail_start to avail_end.
+    pub(crate) teams_available: bool,
+    pub(crate) avail_start: u32,
+    pub(crate) avail_end: u32,
     // Seconds between mail list reads (Outlook, Messenger, Teams).
     pub(crate) poll_s: u32,
     // Largest count a badge shows before turning into "N+".
@@ -193,6 +197,9 @@ impl Default for SvcOpts {
             stale_hours: 24,
             teams_activity: true,
             teams_threads: true,
+            teams_available: true,
+            avail_start: 6,
+            avail_end: 15,
             poll_s: 3,
             badge_max: 9,
             sched_group: "work".into(),

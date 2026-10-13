@@ -78,6 +78,72 @@ if (window.top === window) {
       setTimeout(loadMails, 1500);
     }, 500);
   };
+  // Holds the Available status (with a duration, so Teams stops using idle detection) while the host's window is open,
+  // and resets it when the window closes. Done once per day, so a status changed by hand meanwhile is left alone.
+  function waitFor(fn, ms) {
+    return new Promise(function (res, rej) {
+      var t0 = Date.now();
+      var iv = setInterval(function () {
+        var r = fn();
+        if (r) { clearInterval(iv); res(r); } else if (Date.now() - t0 > (ms || 4000)) { clearInterval(iv); rej(new Error('timeout')); }
+      }, 100);
+    });
+  }
+  function byTid(t) { return function () { return document.querySelector('[data-tid="' + t + '"]'); }; }
+  function openStatusMenu() {
+    var me = document.querySelector('[data-tid="me-control-avatar-trigger"]');
+    if (!me) return Promise.reject(new Error('no avatar'));
+    me.click();
+    return waitFor(byTid('set-presence-status-menu-item')).then(function (i) { i.click(); });
+  }
+  function closeMenus() {
+    ['keydown', 'keyup'].forEach(function (t) {
+      document.dispatchEvent(new KeyboardEvent(t, { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+    });
+  }
+  function pick(combo, re) {
+    if (re.test(combo.innerText)) return Promise.resolve();
+    combo.click();
+    return waitFor(function () {
+      return Array.from(document.querySelectorAll('[role="option"]')).find(function (o) { return re.test(o.innerText); });
+    }).then(function (o) { o.click(); });
+  }
+  function holdAvailable() {
+    return openStatusMenu().then(function () {
+      return waitFor(byTid('set-availability-duration'));
+    }).then(function (d) {
+      d.click();
+      return waitFor(function () {
+        var c = document.querySelectorAll('[data-tid="me-control-set-availability"] button[role="combobox"]');
+        return c.length >= 2 && c;
+      });
+    }).then(function (c) {
+      return pick(c[0], /^\s*available\s*$/i).then(function () { return pick(c[1], /^\s*today\s*$/i); });
+    }).then(function () {
+      return waitFor(byTid('me-control-set-availability-update-availability-button'));
+    }).then(function (b) { b.click(); });
+  }
+  function resetStatus() {
+    return openStatusMenu().then(function () {
+      return waitFor(byTid('set-availability-reset-status'));
+    }).then(function (r) { r.click(); });
+  }
+  var availBusy = false;
+  window.__availStep = function () {
+    if (availBusy || !window.__rt.opt('avail', false) || !document.querySelector('[data-tid="me-control-avatar-trigger"]')) return;
+    var now = window.__rt.opt('availNow', false);
+    var d = new Date().toDateString();
+    var held = localStorage.getItem('__availDay');
+    var job = null;
+    if (now && held !== d) job = holdAvailable().then(function () { localStorage.setItem('__availDay', d); });
+    else if (!now && held) job = resetStatus().then(function () { localStorage.removeItem('__availDay'); });
+    if (!job) return;
+    availBusy = true;
+    job.catch(function (e) { window.__rt.log('available: ' + e.message); closeMenus(); }).then(function () {
+      setTimeout(function () { availBusy = false; }, 30000);
+    });
+  };
+  setInterval(window.__availStep, 10000);
   window.__loadMails = loadMails;
   window.__rt.poll(loadMails);
   // While the window is hidden the page rests on Followed threads, so its unread threads stay listed.

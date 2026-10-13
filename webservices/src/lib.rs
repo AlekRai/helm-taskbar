@@ -61,20 +61,23 @@ pub struct Opts {
     pub stale_hours: u32,
     pub teams_activity: bool,
     pub teams_threads: bool,
+    // Teams: keep the Available status (avail) and whether its hold window is open now (avail_now).
+    pub avail: bool,
+    pub avail_now: bool,
     pub poll_ms: u32,
     pub panel_widen: bool,
 }
 
 impl Default for Opts {
     fn default() -> Self {
-        Opts { stale_hours: 24, teams_activity: true, teams_threads: true, poll_ms: 3000, panel_widen: true }
+        Opts { stale_hours: 24, teams_activity: true, teams_threads: true, avail: false, avail_now: false, poll_ms: 3000, panel_widen: true }
     }
 }
 
 fn opts_script(o: &Opts) -> String {
     format!(
-        "window.__opts = {{stale: {}, activity: {}, threads: {}, poll: {}}};",
-        o.stale_hours, o.teams_activity, o.teams_threads, o.poll_ms
+        "window.__opts = {{stale: {}, activity: {}, threads: {}, avail: {}, availNow: {}, poll: {}}};",
+        o.stale_hours, o.teams_activity, o.teams_threads, o.avail, o.avail_now, o.poll_ms
     )
 }
 
