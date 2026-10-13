@@ -26,11 +26,14 @@ pub(super) fn locale_text(hkl: HKL, kind: u32) -> String {
 }
 
 thread_local! {
-    static LAST_LAYOUT: Cell<isize> = const { Cell::new(0) };
+    // The one layout all apps share, the foreground window last seen, and when a switch we asked for settles.
+    static GLOBAL_LAYOUT: Cell<isize> = const { Cell::new(0) };
+    static LAST_FG: Cell<isize> = const { Cell::new(0) };
+    static SETTLE: Cell<Option<std::time::Instant>> = const { Cell::new(None) };
 }
 
-// Windows keeps a layout per app window. While the foreground is the desktop, the shell or Helm itself
-// (e.g. while a window is being minimized) its layout is meaningless, so the last app's layout stays.
+// While the foreground is the desktop, the shell or Helm itself (e.g. while a window is being minimized)
+// its layout is meaningless and is ignored.
 fn is_neutral(fg: HWND) -> bool {
     let mut pid = 0u32;
     unsafe { GetWindowThreadProcessId(fg, Some(&mut pid)) };
@@ -45,20 +48,48 @@ fn is_neutral(fg: HWND) -> bool {
     )
 }
 
-// Keyboard layout of the focused app (the popups never take focus).
+// The keyboard language is system-wide: a language picked in any app (or here) is applied to every app
+// as it comes to the front. Returns that shared layout (the popups never take focus).
 pub(super) fn current_layout() -> HKL {
     unsafe {
+        let global = GLOBAL_LAYOUT.with(Cell::get);
         let fg = GetForegroundWindow();
         if fg.0.is_null() || is_neutral(fg) {
-            let last = LAST_LAYOUT.with(Cell::get);
-            if last != 0 {
-                return HKL(last as *mut c_void);
+            if global != 0 {
+                return HKL(global as *mut c_void);
+            }
+            return GetKeyboardLayout(0);
+        }
+        let hkl = GetKeyboardLayout(GetWindowThreadProcessId(fg, None));
+        let settling = SETTLE.with(Cell::get).is_some_and(|t| t.elapsed() < std::time::Duration::from_millis(1500));
+        let fresh = LAST_FG.with(|f| f.replace(fg.0 as isize)) != fg.0 as isize;
+        if global == 0 {
+            GLOBAL_LAYOUT.with(|g| g.set(hkl.0 as isize));
+        } else if fresh && hkl.0 as isize != global {
+            SETTLE.with(|s| s.set(Some(std::time::Instant::now())));
+            post_layout(fg, HKL(global as *mut c_void));
+            return HKL(global as *mut c_void);
+        } else if settling {
+            return HKL(global as *mut c_void);
+        } else {
+            GLOBAL_LAYOUT.with(|g| g.set(hkl.0 as isize));
+        }
+        hkl
+    }
+}
+
+// Asks a window (and its focused child, which is where some apps listen) to change layout.
+fn post_layout(fg: HWND, hkl: HKL) {
+    use windows::Win32::UI::WindowsAndMessaging::{GUITHREADINFO, GetGUIThreadInfo};
+    unsafe {
+        let tid = GetWindowThreadProcessId(fg, None);
+        let mut gti = GUITHREADINFO { cbSize: size_of::<GUITHREADINFO>() as u32, ..Default::default() };
+        let _ = GetGUIThreadInfo(tid, &mut gti);
+        for h in [fg, gti.hwndFocus, gti.hwndActive] {
+            if !h.0.is_null() {
+                let _ = PostMessageW(Some(h), 0x0050, WPARAM(0), LPARAM(hkl.0 as isize));
             }
         }
-        let tid = if fg.0.is_null() { 0 } else { GetWindowThreadProcessId(fg, None) };
-        let hkl = GetKeyboardLayout(tid);
-        LAST_LAYOUT.with(|l| l.set(hkl.0 as isize));
-        hkl
     }
 }
 
@@ -129,21 +160,12 @@ pub(crate) fn cycle_language() {
 }
 
 pub(super) fn switch_language(hkl: HKL) {
-    use windows::Win32::UI::WindowsAndMessaging::{GUITHREADINFO, GetGUIThreadInfo};
-    unsafe {
-        let fg = GetForegroundWindow();
-        if fg.0.is_null() {
-            return;
-        }
-        let tid = GetWindowThreadProcessId(fg, None);
-        let mut gti = GUITHREADINFO { cbSize: size_of::<GUITHREADINFO>() as u32, ..Default::default() };
-        let _ = GetGUIThreadInfo(tid, &mut gti);
-        // WM_INPUTLANGCHANGEREQUEST; some apps only honour it on the focused child.
-        for h in [fg, gti.hwndFocus, gti.hwndActive] {
-            if !h.0.is_null() {
-                let _ = PostMessageW(Some(h), 0x0050, WPARAM(0), LPARAM(hkl.0 as isize));
-            }
-        }
+    let fg = unsafe { GetForegroundWindow() };
+    if fg.0.is_null() {
+        return;
     }
+    GLOBAL_LAYOUT.with(|g| g.set(hkl.0 as isize));
+    SETTLE.with(|s| s.set(Some(std::time::Instant::now())));
+    post_layout(fg, hkl);
 }
 

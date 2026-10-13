@@ -897,10 +897,9 @@ fn on_message(id: &str, msg: &str) {
         return;
     }
     if a == "join" {
-        // The calendar page found the meeting's Teams link; the default browser hands it to Teams.
-        if b.starts_with("https://teams.") {
-            let u = wide(b);
-            unsafe { ShellExecuteW(None, w!("open"), PCWSTR(u.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL) };
+        // The calendar page found the meeting's Teams link; it opens in the Teams web app in our own window.
+        if let Some(rest) = b.split_once("/l/meetup-join/").map(|x| x.1).filter(|_| b.starts_with("https://teams.")) {
+            open_url("teams", &format!("https://teams.cloud.microsoft/v2/?meetingjoin=true#/l/meetup-join/{rest}"));
         }
         return;
     }
