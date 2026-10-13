@@ -62,6 +62,8 @@ fn mail_panel_width(rows: &[(SvcItem, Option<String>)]) -> f32 {
     (38.0 + 42.0 + 12.0 + longest * 1.05).clamp(MAIL_FLY_MIN_WIDTH, MAIL_FLY_WIDTH)
 }
 const MAIL_PANEL_WIDTH: f32 = 560.0;
+// Messenger switches to its narrow mobile layout below 768px, which breaks the single-conversation view.
+const MESSENGER_PANEL_WIDTH: f32 = 800.0;
 const MAIL_PANEL_HEIGHT: f32 = 760.0;
 
 fn svc_fly_size(n: usize, scale: f32) -> (i32, i32) {
@@ -201,7 +203,8 @@ pub(crate) fn mail_row_clicked(index: usize) {
     if unsafe { GetWindowRect(hwnd, &mut r) }.is_err() {
         return;
     }
-    let w = (MAIL_PANEL_WIDTH * scale).round() as i32;
+    let panel_w = if id.contains("messenger") { MESSENGER_PANEL_WIDTH } else { MAIL_PANEL_WIDTH };
+    let w = (panel_w * scale).round() as i32;
     let mut area = screen;
     unsafe {
         let mut mi = MONITORINFO { cbSize: size_of::<MONITORINFO>() as u32, ..Default::default() };
