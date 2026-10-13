@@ -167,6 +167,8 @@ pub(crate) struct SvcOpts {
     pub(crate) sched_days: u32,
     pub(crate) sched_start: u32,
     pub(crate) sched_end: u32,
+    // Software rendering, shared renderers and trimmed hidden pages; applies at next start.
+    pub(crate) low_memory: bool,
     // DevTools port and adapter logging; applies at next start.
     pub(crate) dev: bool,
 }
@@ -193,6 +195,7 @@ impl Default for SvcOpts {
             sched_days: 0b0111110,
             sched_start: 6,
             sched_end: 17,
+            low_memory: true,
             dev: false,
         }
     }

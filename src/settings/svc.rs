@@ -50,6 +50,7 @@ fn populate_svc_opts(ui: &SettingsWindow) {
         days: o.sched_days as i32,
         start: o.sched_start as i32,
         end: o.sched_end as i32,
+        low_memory: o.low_memory,
         dev: o.dev,
     });
 }
@@ -156,7 +157,6 @@ fn wire_svc_rows(ui: &SettingsWindow) {
             let taken: Vec<String> = l.iter().map(|c| c.id.clone()).collect();
             let id = slug(&name, &taken);
             l.push(webservices::ServiceCfg {
-                profile: id.clone(),
                 id,
                 name,
                 url,
@@ -184,6 +184,7 @@ fn wire_svc_opts(ui: &SettingsWindow) {
             "panel_widen" => o.panel_widen = on,
             "teams_activity" => o.teams_activity = on,
             "teams_threads" => o.teams_threads = on,
+            "low_memory" => o.low_memory = on,
             "dev" => o.dev = on,
             _ => {}
         });

@@ -24,7 +24,7 @@ impl Default for ServiceCfg {
             name: String::new(),
             url: String::new(),
             group: "personal".into(),
-            profile: "default".into(),
+            profile: "main".into(),
             adapter: "generic".into(),
             enabled: true,
             flash: true,
@@ -44,11 +44,11 @@ pub fn default_services() -> Vec<ServiceCfg> {
         flash: true,
     };
     vec![
-        svc("gmail1", "Gmail 1", "https://mail.google.com/mail/u/0/", "personal", "google", "gmail"),
-        svc("gmail2", "Gmail 2", "https://mail.google.com/mail/u/1/", "personal", "google", "gmail"),
-        svc("gmail3", "Gmail 3", "https://mail.google.com/mail/u/2/", "personal", "google", "gmail"),
-        svc("messenger", "Messenger", "https://www.messenger.com/", "personal", "messenger", "messenger"),
-        svc("outlook", "Outlook", "https://outlook.office.com/mail/", "work", "work", "outlook"),
-        svc("teams", "Teams", "https://teams.cloud.microsoft/", "work", "work", "teams"),
+        svc("gmail1", "Gmail 1", "https://mail.google.com/mail/u/0/", "personal", "main", "gmail"),
+        svc("gmail2", "Gmail 2", "https://mail.google.com/mail/u/1/", "personal", "main", "gmail"),
+        svc("gmail3", "Gmail 3", "https://mail.google.com/mail/u/2/", "personal", "main", "gmail"),
+        svc("messenger", "Messenger", "https://www.messenger.com/", "personal", "main", "messenger"),
+        svc("outlook", "Outlook", "https://outlook.office.com/mail/", "work", "main", "outlook"),
+        svc("teams", "Teams", "https://teams.cloud.microsoft/", "work", "main", "teams"),
     ]
 }

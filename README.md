@@ -41,6 +41,7 @@ Helm hides the native taskbars and draws its own on every monitor. It is built w
 - Unread mail lists with hover previews, mark as read, and a side panel that opens a single mail
 - An optional schedule, so a group such as Work is closed completely outside its hours
 - A meeting countdown on the bar while the Work group is active: the next Outlook meeting today (blue, amber under an hour, red under 10 minutes), or green with the time left while one is in progress
+- Low-memory mode (Settings > Services > Memory, on by default): all services share one WebView2 profile (`web\main`; Messenger/Outlook/Teams need a one-time re-login after upgrading), Gmail is read from its lightweight atom feed until opened, hidden windows get a low memory target, and idle processes are trimmed.
 - Per-site adapters are plain JavaScript in `webservices/src/adapters/` and can be overridden from `%APPDATA%\Helm\services\<id>.js`
 
 **Customisation**

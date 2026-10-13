@@ -14,7 +14,7 @@ fn main() {
     let only = list(value("--only"));
 
     let base = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_default().join("Helm");
-    webservices::init(base, debug, |m| eprintln!("{m}"));
+    webservices::init(base, debug, true, |m| eprintln!("{m}"));
 
     let mut cfgs = webservices::default_services();
     if !only.is_empty() {

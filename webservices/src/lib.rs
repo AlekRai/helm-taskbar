@@ -7,7 +7,7 @@ mod cfg;
 
 pub use cfg::{ServiceCfg, default_services};
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use webview2_com::Microsoft::Web::WebView2::Win32::*;
@@ -37,6 +37,8 @@ struct Svc {
     reported: bool,
     mail: Vec<MailItem>,
     shown: bool,
+    // Low-memory Gmail: the hidden page is just the atom feed; the full page loads while shown.
+    light: bool,
 }
 
 // One unread mail as shown in the bar's mail list.
@@ -90,6 +92,8 @@ pub fn set_opts(o: Opts) {
 }
 
 thread_local! {
+    static LOW_MEM: Cell<bool> = const { Cell::new(false) };
+    static LAST_TRIM: Cell<Option<std::time::Instant>> = const { Cell::new(None) };
     static OPTS: RefCell<Opts> = RefCell::new(Opts::default());
     static SVCS: RefCell<Vec<Svc>> = const { RefCell::new(Vec::new()) };
     static ENVS: RefCell<HashMap<String, ICoreWebView2Environment>> = RefCell::new(HashMap::new());
@@ -121,8 +125,11 @@ fn log(msg: &str) {
 
 // `base` holds the browser profiles (`base\web`) and optional adapter overrides (`base\services`).
 // `debug` exposes the DevTools protocol on a random port (see DevToolsActivePort in the profile).
-pub fn init(base: PathBuf, debug: bool, log: fn(&str)) {
+// `low_memory` renders in software, shares renderer processes, lowers the memory target of hidden pages
+// and periodically trims their working sets.
+pub fn init(base: PathBuf, debug: bool, low_memory: bool, log: fn(&str)) {
     SETTINGS.with(|s| *s.borrow_mut() = Settings { base, log });
+    LOW_MEM.with(|l| l.set(low_memory));
     // WebView2 needs an apartment-threaded COM thread; harmless if the host already set one up.
     unsafe {
         let _ = windows::Win32::System::Com::CoInitializeEx(None, windows::Win32::System::Com::COINIT_APARTMENTTHREADED);
@@ -130,6 +137,9 @@ pub fn init(base: PathBuf, debug: bool, log: fn(&str)) {
     let mut args = String::from(
         "--disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows",
     );
+    if low_memory {
+        args.push_str(" --disable-gpu --renderer-process-limit=3 --disable-features=IsolateOrigins,site-per-process");
+    }
     if debug {
         args.push_str(" --remote-debugging-port=0");
     }
@@ -166,19 +176,24 @@ pub fn calendar() -> Vec<CalEvent> {
     all
 }
 
-// Closes every service of a group (and the mail panel if it uses their profile), so their browser processes exit.
+// Closes every service of a group (and the mail panel if one of them opened it). A profile's browser
+// process exits once no service uses it any more.
 pub fn stop_group(group: &str) {
     let gone: Vec<Svc> = SVCS.with(|s| {
         let mut s = s.borrow_mut();
-        let profiles: Vec<String> = s.iter().filter(|v| v.cfg.group == group).map(|v| v.cfg.profile.clone()).collect();
-        let (gone, keep): (Vec<Svc>, Vec<Svc>) = std::mem::take(&mut *s).into_iter().partition(|v| profiles.contains(&v.cfg.profile));
+        let src = PANEL_SRC.with(|p| p.borrow().clone());
+        let ids: Vec<String> = s.iter().filter(|v| v.cfg.group == group).map(|v| v.cfg.id.clone()).collect();
+        let (gone, keep): (Vec<Svc>, Vec<Svc>) =
+            std::mem::take(&mut *s).into_iter().partition(|v| ids.contains(&v.cfg.id) || (v.cfg.id == PANEL_ID && ids.contains(&src)));
         *s = keep;
         gone
     });
     for v in gone {
         EVENTS.with(|e| e.borrow_mut().remove(&v.cfg.id));
-        ENVS.with(|e| e.borrow_mut().remove(&v.cfg.profile));
-        PENDING.with(|p| p.borrow_mut().remove(&v.cfg.profile));
+        if !SVCS.with(|s| s.borrow().iter().any(|o| o.cfg.profile == v.cfg.profile)) {
+            ENVS.with(|e| e.borrow_mut().remove(&v.cfg.profile));
+            PENDING.with(|p| p.borrow_mut().remove(&v.cfg.profile));
+        }
         unsafe {
             if let Some(c) = &v.controller {
                 let _ = c.Close();
@@ -207,6 +222,7 @@ pub fn stop_service(id: &str) {
 
 // Shows a service window, bringing it to the front.
 pub fn open(id: &str) {
+    switch_gmail_mode(id, true);
     let hwnd = SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == id).map(|v| v.hwnd));
     let Some(hwnd) = hwnd else { return };
     unsafe {
@@ -359,6 +375,96 @@ fn sync_shown() {
     });
     for (id, shown) in changed {
         run_script(&id, &format!("window.__shown = {shown}"));
+        set_memory_level(&id, !shown);
+        switch_gmail_mode(&id, shown);
+    }
+    maybe_trim();
+}
+
+// The atom feed of a Gmail account, used as its light hidden page (low-memory mode only).
+fn feed_url(cfg: &ServiceCfg) -> Option<String> {
+    if cfg.adapter != "gmail" || !LOW_MEM.with(|l| l.get()) {
+        return None;
+    }
+    let i = cfg.url.find("/mail/u/")?;
+    let n = cfg.url[i + 8..].split('/').next()?;
+    Some(format!("{}/mail/u/{n}/feed/atom", &cfg.url[..i]))
+}
+
+fn navigate(id: &str, url: &str) {
+    let web = SVCS.with(|s| {
+        s.borrow().iter().find(|v| v.cfg.id == id).and_then(|v| v.controller.as_ref().and_then(|c| unsafe { c.CoreWebView2().ok() }))
+    });
+    if let Some(web) = web {
+        let u = wide(url);
+        unsafe {
+            let _ = web.Navigate(PCWSTR(u.as_ptr()));
+        }
+    }
+}
+
+// Light Gmail: the full page while shown, the feed page while hidden.
+fn switch_gmail_mode(id: &str, shown: bool) {
+    let Some((cfg, light)) = SVCS.with(|s| s.borrow().iter().find(|v| v.cfg.id == id).map(|v| (v.cfg.clone(), v.light))) else { return };
+    let Some(feed) = feed_url(&cfg).filter(|_| light) else { return };
+    let url = if shown { cfg.url.clone() } else { feed };
+    let web = SVCS.with(|s| {
+        s.borrow().iter().find(|v| v.cfg.id == id).and_then(|v| v.controller.as_ref().and_then(|c| unsafe { c.CoreWebView2().ok() }))
+    });
+    let Some(web) = web else { return };
+    let mut src = PWSTR::null();
+    let current = unsafe { web.Source(&mut src).map(|_| take_pwstr(src)).unwrap_or_default() };
+    // Only swap between the feed and the full page; a mail opened by link stays.
+    let on_feed = current.ends_with("/feed/atom");
+    if shown == on_feed {
+        navigate(id, &url);
+    }
+}
+
+// Hidden pages get the low memory target; a shown one runs normally.
+fn set_memory_level(id: &str, low: bool) {
+    if !LOW_MEM.with(|l| l.get()) {
+        return;
+    }
+    let web = SVCS.with(|s| {
+        s.borrow().iter().find(|v| v.cfg.id == id).and_then(|v| v.controller.as_ref().and_then(|c| unsafe { c.CoreWebView2().ok() }))
+    });
+    if let Some(web19) = web.and_then(|w| w.cast::<ICoreWebView2_19>().ok()) {
+        let level = if low { COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW } else { COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL };
+        unsafe {
+            let _ = web19.SetMemoryUsageTargetLevel(level);
+        }
+    }
+}
+
+// While every service window is hidden, empties the working set of the web view processes once a minute.
+fn maybe_trim() {
+    if !LOW_MEM.with(|l| l.get()) || LAST_TRIM.with(|t| t.get().is_some_and(|t| t.elapsed().as_secs() < 60)) {
+        return;
+    }
+    if SVCS.with(|s| s.borrow().iter().any(|v| unsafe { IsWindowVisible(v.hwnd).as_bool() })) {
+        return;
+    }
+    LAST_TRIM.with(|t| t.set(Some(std::time::Instant::now())));
+    use windows::Win32::System::{ProcessStatus::EmptyWorkingSet, Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_SET_QUOTA}};
+    let envs: Vec<ICoreWebView2Environment> = ENVS.with(|e| e.borrow().values().cloned().collect());
+    for env in envs {
+        let Ok(env13) = env.cast::<ICoreWebView2Environment13>() else { continue };
+        unsafe {
+            let Ok(list) = env13.GetProcessInfos() else { continue };
+            let mut n = 0u32;
+            let _ = list.Count(&mut n);
+            for i in 0..n {
+                let mut pid = 0i32;
+                if list.GetValueAtIndex(i).and_then(|p| p.ProcessId(&mut pid)).is_err() {
+                    continue;
+                }
+                if let Ok(h) = OpenProcess(PROCESS_SET_QUOTA | PROCESS_QUERY_INFORMATION, false, pid as u32) {
+                    let _ = EmptyWorkingSet(h);
+                    let _ = CloseHandle(h);
+                }
+            }
+        }
     }
 }
 
@@ -402,6 +508,7 @@ fn launch(cfg: &ServiceCfg, show: bool) {
             reported: false,
             mail: Vec::new(),
             shown: false,
+            light: feed_url(cfg).is_some(),
         })
     });
     start_webview(cfg.clone(), hwnd);
@@ -593,7 +700,7 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
         }
         // Navigate only once the script is registered, or the first page load could miss it.
         let script = wide(&adapter_script(cfg));
-        let url = wide(&cfg.url);
+        let url = wide(&feed_url(cfg).unwrap_or_else(|| cfg.url.clone()));
         let nav = web.clone();
         let added = AddScriptToExecuteOnDocumentCreatedCompletedHandler::create(Box::new(move |_, _| {
             let _ = nav.Navigate(PCWSTR(url.as_ptr()));
@@ -603,6 +710,11 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
 
         let _ = controller.SetIsVisible(true);
         resize(&controller, hwnd);
+        if LOW_MEM.with(|l| l.get()) && !IsWindowVisible(hwnd).as_bool() {
+            if let Ok(web19) = web.cast::<ICoreWebView2_19>() {
+                let _ = web19.SetMemoryUsageTargetLevel(COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW);
+            }
+        }
     }
     SVCS.with(|s| {
         if let Some(v) = s.borrow_mut().iter_mut().find(|v| v.cfg.id == cfg.id) {
@@ -757,6 +869,20 @@ fn on_message(id: &str, msg: &str) {
                 v.mail = mail;
             }
         });
+        return;
+    }
+    // Gmail's feed page was sent to a sign-in page: use the full page from now on.
+    if a == "login" {
+        let cfg = SVCS.with(|s| {
+            s.borrow_mut().iter_mut().find(|v| v.cfg.id == id && v.light).map(|v| {
+                v.light = false;
+                v.cfg.clone()
+            })
+        });
+        if let Some(cfg) = cfg {
+            log(&format!("[{id}] feed needs sign-in, using the full page"));
+            navigate(id, &cfg.url);
+        }
         return;
     }
     if a == "events" {

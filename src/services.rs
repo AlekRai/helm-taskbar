@@ -6,10 +6,24 @@ pub(crate) const SVC_BTN: f32 = 34.0;
 
 const GROUPS: [(&str, &str); 2] = [("personal", "Personal"), ("work", "Work")];
 
+// All services share one browser profile ("main"): the old Google profile folder becomes it, so only the
+// other profiles' services (Messenger, Outlook, Teams) need a new sign-in.
+fn migrate_profiles(base: &std::path::Path) {
+    let (old, new) = (base.join("web").join("google"), base.join("web").join("main"));
+    if old.exists() && !new.exists() {
+        let _ = std::fs::rename(&old, &new);
+    }
+    let list = load_services();
+    if list.iter().any(|c| c.profile != "main") {
+        save_services(list.into_iter().map(|c| webservices::ServiceCfg { profile: "main".into(), ..c }).collect());
+    }
+}
+
 // Starts every enabled service with a hidden window.
 pub(crate) fn start() {
     let Some(base) = config_dir() else { return };
-    webservices::init(base, load_svc().dev, log);
+    migrate_profiles(&base);
+    webservices::init(base, load_svc().dev, load_svc().low_memory, log);
     push_opts();
     ACTIVE.with(|a| a.set(GROUPS.map(|(k, _)| group_visible(k))));
     start_active();

@@ -258,6 +258,13 @@ export component ServicesTab inherits Rectangle {
                 toggled => { root.so.threads = self.checked; root.opt-bool("teams_threads", self.checked); }
             }
 
+            SectionTitle { text: "Memory"; }
+            CheckBox {
+                text: "Low-memory mode (software rendering, shared renderers, trim hidden pages; applies at next start)";
+                checked: root.so.low_memory;
+                toggled => { root.so.low_memory = self.checked; root.opt-bool("low_memory", self.checked); }
+            }
+
             SectionTitle { text: "Developer"; }
             CheckBox {
                 text: "Dev mode (DevTools port, applies at next start)";

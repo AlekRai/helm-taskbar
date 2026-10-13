@@ -3,6 +3,8 @@
 if (window.top === window) {
   var gmBase = (/^\/mail\/u\/\d+\//.exec(location.pathname) || ['/mail/u/0/'])[0];
   setInterval(function () {
+    // In low-memory mode the hidden page is the atom feed; a sign-in page there means the full page is needed.
+    if (location.hostname === 'accounts.google.com') window.chrome.webview.postMessage('login|');
     if (location.hostname !== 'mail.google.com') return;
     // The tab title carries the account: "Inbox (5) - name@gmail.com - Gmail".
     var who = /([\w.+-]+)@[\w.-]+/.exec(document.title);
@@ -36,6 +38,8 @@ if (window.top === window) {
             url: id ? 'https://mail.google.com' + gmBase + '#inbox/' + id[1] : '',
           };
         });
+        var who = /for ([\w.+-]+)@/.exec(t.slice(0, 400));
+        if (who) window.__rt.name(who[1]);
         var full = /<fullcount>(\d+)<\/fullcount>/.exec(t);
         if (full || rows.length) {
           feedOk = true;
@@ -49,15 +53,27 @@ if (window.top === window) {
   window.__markRead = function (id) {
     id = id.split('/').pop();
     var at = (document.cookie.match(/GMAIL_AT=([^;]+)/) || [])[1];
-    var ik = window.GLOBALS && String(window.GLOBALS[9]);
-    if (!at || !ik || !/^[0-9a-f]+$/.test(id)) return;
-    fetch(gmBase + '?ui=2&ik=' + ik + '&at=' + at + '&view=up&act=rd&pcd=1&mb=0&rt=j&search=inbox', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 't=' + id,
-    }).then(loadMails, function () {});
+    if (!at || !/^[0-9a-f]+$/.test(id)) return;
+    getIk().then(function (ik) {
+      if (!ik) return window.__rt.log('mark read: no ik');
+      return fetch(gmBase + '?ui=2&ik=' + ik + '&at=' + at + '&view=up&act=rd&pcd=1&mb=0&rt=j&search=inbox', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 't=' + id,
+      }).then(loadMails);
+    }).catch(function () {});
   };
+  // Mailbox key: from the full page, or (on the feed page) from the page source of the mailbox.
+  var ikCache = null;
+  function getIk() {
+    if (window.GLOBALS) return Promise.resolve(String(window.GLOBALS[9]));
+    if (ikCache) return Promise.resolve(ikCache);
+    return fetch(gmBase, { credentials: 'include' }).then(function (r) { return r.text(); }).then(function (t) {
+      var m = /GLOBALS=\[null,null,\d+,"[^"]*","[^"]*","[^"]*","[^"]*","[^"]*",\d+,"([0-9a-f]+)"/.exec(t);
+      return (ikCache = m ? m[1] : null);
+    });
+  }
   window.__loadMails = loadMails;
   window.__rt.poll(loadMails, 10000);
   setTimeout(loadMails, 4000);
