@@ -50,21 +50,43 @@ if (window.top === window) {
       .catch(function (e) { window.__rt.log('mails error: ' + e); });
   }
   // Marks a conversation read through Gmail's own action endpoint, then re-reads the unread list.
-  window.__markRead = function (id) {
-    id = id.split('/').pop();
+  // The action token is a session cookie that only the full Gmail page sets, so the light feed page
+  // loads the full page once, finishes the job there and returns to the feed.
+  function sendRead(id) {
     var at = (document.cookie.match(/GMAIL_AT=([^;]+)/) || [])[1];
-    if (!at || !/^[0-9a-f]+$/.test(id)) return;
-    getIk().then(function (ik) {
-      if (!ik) return window.__rt.log('mark read: no ik');
+    if (!at) return Promise.resolve(false);
+    return getIk().then(function (ik) {
+      if (!ik) return false;
       return fetch(gmBase + '?ui=2&ik=' + ik + '&at=' + at + '&view=up&act=rd&pcd=1&mb=0&rt=j&search=inbox', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 't=' + id,
-      }).then(loadMails);
-    }).catch(function () {});
+      }).then(function (r) { window.__rt.log('mark read: ' + r.status); return true; });
+    });
+  }
+  window.__markRead = function (id) {
+    id = id.split('/').pop();
+    if (!/^[0-9a-f]+$/.test(id)) return;
+    sendRead(id).then(function (done) {
+      if (done) return loadMails();
+      sessionStorage.setItem('__pendingRead', id);
+      location.href = gmBase;
+    }).catch(function (e) { window.__rt.log('mark read error: ' + e); });
   };
-  // Mailbox key: from the full page, or (on the feed page) from the page source of the mailbox.
+  var waits = 0;
+  setInterval(function () {
+    var id = location.hostname === 'mail.google.com' && window.GLOBALS && sessionStorage.getItem('__pendingRead');
+    if (!id) return;
+    // The cookie appears a moment after the page object does.
+    if (!/GMAIL_AT=/.test(document.cookie) && ++waits < 20) return;
+    sessionStorage.removeItem('__pendingRead');
+    sendRead(id).then(function (done) {
+      if (!done) window.__rt.log('mark read: no action token');
+      loadMails();
+      if (!window.__shown) setTimeout(function () { location.href = gmBase + 'feed/atom'; }, 1500);
+    });
+  }, 1000);  // Mailbox key: from the full page, or (on the feed page) from the page source of the mailbox.
   var ikCache = null;
   function getIk() {
     if (window.GLOBALS) return Promise.resolve(String(window.GLOBALS[9]));
