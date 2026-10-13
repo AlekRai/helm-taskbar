@@ -94,16 +94,21 @@ if (window.top === window) {
         }, 2500);
       };
       // A response already given hides the buttons behind "Change".
-      var change = visible('button', /^\W*Change\W*$/);
-      if (change && !visible('button[aria-label^="Accept"]', null)) change.click();
+      // The card renders a moment after the click, so this is retried by the waits below.
+      var changed = false;
+      var reveal = function () {
+        if (changed || visible('button[aria-label^="Accept"]', null)) return;
+        var change = visible('button', /^\W*Change\W*$/);
+        if (change) { changed = true; change.click(); }
+      };
       if (action === 'tentative') {
-        until(function () { return Array.from(document.querySelectorAll('button[aria-label="More options"]')).filter(function (b) { return b.offsetParent && b.getBoundingClientRect().top > 300; })[0]; }, function (more) {
+        until(function () { reveal(); return Array.from(document.querySelectorAll('button[aria-label="More options"]')).filter(function (b) { return b.offsetParent && b.getBoundingClientRect().top > 300; })[0]; }, function (more) {
           more.click();
           until(function () { return visible('[role="menuitem"]', /^\W*Tentative\W*$/); }, function (m) { m.click(); finish(); }, close);
         }, close);
       } else {
         var label = { accepted: 'Accept', follow: 'Follow' }[action] || 'Decline';
-        until(function () { return visible('button[aria-label^="' + label + '"]', null); }, function (b) { b.click(); finish(); }, close);
+        until(function () { reveal(); return visible('button[aria-label^="' + label + '"]', null); }, function (b) { b.click(); finish(); }, close);
       }
     }, function () { window.__rt.log('meeting: event not in list'); close(); });
   };

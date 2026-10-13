@@ -437,7 +437,12 @@ pub(crate) fn track_mail() {
     for s in all {
         let settled = FIRST.with(|f| f.borrow_mut().entry(s.id.clone()).or_insert_with(std::time::Instant::now).elapsed() > settle);
         for m in &s.mail {
-            let fresh = SEEN.with(|seen| seen.borrow_mut().insert(m.url.clone()));
+            let mut fresh = SEEN.with(|seen| seen.borrow_mut().insert(m.url.clone()));
+            // A chat that already has unread messages sounds again for each newer last message.
+            if s.id.contains("messenger") {
+                let key = format!("{}\n{}", m.url, m.preview);
+                fresh |= SEEN.with(|seen| seen.borrow_mut().insert(key));
+            }
             if fresh && settled {
                 FLASH.with(|f| f.borrow_mut().insert(m.url.clone()));
                 chime = true;
