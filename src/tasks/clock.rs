@@ -45,15 +45,21 @@ pub(super) fn set_clock(ui: &BarWindow, parts: &(String, String)) {
 // Refreshes just the clock text on every bar.
 pub(crate) fn update_clocks() {
     let parts = clock_parts();
+    // A changed text also forces a repaint, in case a bar's window stopped redrawing (e.g. after sleep or a display change).
+    let changed = LAST_CLOCK.with(|l| l.replace(parts.clone()) != parts);
     for m in bar_keys() {
         if let Some(ui) = with_bar(m, |b| b.ui.clone_strong()) {
             set_clock(&ui, &parts);
+            if changed {
+                ui.window().request_redraw();
+            }
         }
     }
 }
 
 thread_local! {
     pub(super) static CLOCK_TIMER: slint::Timer = slint::Timer::default();
+    static LAST_CLOCK: std::cell::RefCell<(String, String)> = const { std::cell::RefCell::new((String::new(), String::new())) };
 }
 
 // The fast tick is only needed while seconds are shown; otherwise the regular refresh keeps the clock current.
