@@ -11,8 +11,12 @@ function panelSel() {
 function panelBg(el) {
   for (; el; el = el.parentElement) {
     var m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/.exec(getComputedStyle(el).backgroundColor);
-    if (m && (m[4] === undefined || parseFloat(m[4]) > 0.5)) return 
-  // Deep links first show a download page; pick the web app.
+    if (m && (m[4] === undefined ||     parseFloat(m[4]) > 0.5)) return m[0] + ')';
+      }
+      return '#fff';
+    }
+    if (window.top === window) {
+      // Deep links first show a download page; pick the web app.
   setInterval(function () {
     var b = Array.from(document.querySelectorAll('button, a')).find(function (x) { return /^use the web app instead$/i.test(x.innerText.trim()); });
     if (b) b.click();
