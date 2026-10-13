@@ -27,9 +27,18 @@ function panelBg(el) {
     if (!target || document.getElementById('__panel') || !document.head) return;
     var s = document.createElement('style');
     s.id = '__panel';
+    // Messenger mounts popups (emoji picker, menus) outside the conversation, so only what exists now is hidden.
+    var hide = 'body *{visibility:hidden!important}' + sel + ',' + sel + ' *{visibility:visible!important}';
+    if (/(^|\.)messenger\.com$/.test(location.hostname)) {
+      for (var e = target; e && e !== document.body; e = e.parentElement) {
+        Array.from(e.parentElement.children).forEach(function (c) {
+          if (c !== e && c.children.length && !c.contains(target)) c.setAttribute('data-ph', '');
+        });
+      }
+      hide = '[data-ph]{display:none!important}';
+    }
     s.textContent =
-      'body *{visibility:hidden!important}' +
-      sel + ',' + sel + ' *{visibility:visible!important}' +
+      hide +
       sel + '{position:fixed!important;left:0;top:0;width:100vw!important;height:100vh!important;' +
       'z-index:99999;background:' + panelBg(target) + ';overflow:auto!important}';
     document.head.appendChild(s);
