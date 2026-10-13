@@ -190,9 +190,17 @@ pub(crate) fn install_win_key_hook() {
     inject_win_key();
     suspend_search_host();
     let timer = slint::Timer::default();
+    // Off the UI thread: the thread walk takes tens of ms and would stutter bar animations.
     timer.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(3), || {
-        inject_win_key();
-        suspend_search_host();
+        static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if BUSY.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        std::thread::spawn(|| {
+            inject_win_key();
+            suspend_search_host();
+            BUSY.store(false, Ordering::SeqCst);
+        });
     });
     std::mem::forget(timer);
 
