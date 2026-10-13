@@ -1,4 +1,7 @@
 // Unread count = the Activity and Chat badges in the app bar (summed). Meeting = own presence "In a call".
+if (window.top === window && location.hostname === 'teams.microsoft.com') {
+  location.replace(location.href.replace('teams.microsoft.com', 'teams.cloud.microsoft'));
+}
 if (window.top === window) {
   setInterval(function () {
     var bar = document.querySelector('[data-tid="app-bar-wrapper"]');
