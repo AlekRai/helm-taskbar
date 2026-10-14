@@ -13,18 +13,23 @@ function staleReaction(a) {
   return hours >= limit;
 }
 
+// Muted chats carry a crossed-bell icon (12x13 viewBox) in their row.
+function muted(a) {
+  return !!a.querySelector('svg[viewBox="0 0 12 13"]');
+}
+
 if (window.top === window) {
   setInterval(function () {
     if (!document.querySelector('[role="grid"], [aria-label^="Chats"]')) return;
     var tab = document.querySelector('a[aria-label^="Chats"][aria-label*="unread"]');
     var m = tab && /(\d+)\s+unread/i.exec(tab.getAttribute('aria-label'));
     if (m) {
-      var stale = Array.from(document.querySelectorAll('[role="grid"] a')).filter(staleReaction).length;
+      var stale = Array.from(document.querySelectorAll('[role="grid"] a')).filter(function (a) { return staleReaction(a) || (muted(a) && /Unread message/i.test(a.innerText) && !staleReaction(a)); }).length;
       window.__rt.report(Math.max(0, parseInt(m[1], 10) - stale), false);
       return;
     }
     var rows = Array.from(document.querySelectorAll('[role="grid"] a')).filter(function (a) {
-      return /Unread message/i.test(a.innerText) && !staleReaction(a);
+      return /Unread message/i.test(a.innerText) && !staleReaction(a) && !muted(a);
     });
     window.__rt.report(rows.length, false);
   }, 2000);
@@ -36,7 +41,7 @@ if (window.top === window) {
     var rows = [];
     links.forEach(function (a) {
       var t = a.innerText;
-      if (!/Unread message/i.test(t) || staleReaction(a)) return;
+      if (!/Unread message/i.test(t) || staleReaction(a) || muted(a)) return;
       var lines = t.split('\n').map(function (s) { return s.trim(); }).filter(function (s) {
         return s && s !== '\u00b7' && s !== 'Active now' && s !== 'Reply?' && !/^\d+\s*[smhdwy]$/.test(s);
       });
