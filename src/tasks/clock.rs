@@ -51,6 +51,7 @@ pub(crate) fn update_clocks() {
         if let Some((ui, hwnd)) = with_bar(m, |b| (b.ui.clone_strong(), b.hwnd)) {
             set_clock(&ui, &parts);
             if changed {
+                ui.set_clock_flip(!ui.get_clock_flip());
                 ui.window().request_redraw();
                 unsafe {
                     use windows::Win32::Graphics::Gdi::{RDW_ALLCHILDREN, RDW_INVALIDATE, RDW_UPDATENOW, RedrawWindow};

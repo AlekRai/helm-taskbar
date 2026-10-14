@@ -478,6 +478,8 @@ export component BarWindow inherits Window {
     in property <bool> has-overflow: false;
     in property <string> clock;
     in property <string> clock-date;
+    // Flipped on every clock change so the whole clock button is invalidated, not just the text.
+    in property <bool> clock-flip;
     in property <bool> show-clock: true;
     // Three small status icons beside the clock (primary bar only); the clock button opens quick settings.
     in property <bool> show-sys: false;
@@ -653,7 +655,7 @@ export component BarWindow inherits Window {
             height: parent.height - 8px;
             border-radius: Theme.button-radius;
             background: clock-ta.pressed && clock-ta.has-hover ? Theme.pressed
-                : clock-ta.has-hover ? Theme.hover : transparent;
+                : clock-ta.has-hover ? Theme.hover : root.clock-flip ? #ffffff02 : #ffffff01;
             animate background { duration: Theme.anim; easing: ease-out; }
             VerticalLayout {
                 alignment: center;
