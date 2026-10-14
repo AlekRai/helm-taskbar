@@ -303,6 +303,17 @@ unsafe fn covered(hwnd: HWND) -> bool {
     }
 }
 
+thread_local! {
+    static FS_LAST: std::cell::RefCell<std::collections::HashMap<isize, bool>> = std::cell::RefCell::new(Default::default());
+}
+
+// Logs each change of a bar's fullscreen state with the window that decided it.
+fn log_fullscreen(bar: HWND, full: bool, class: &str, r: &RECT) {
+    if FS_LAST.with(|f| f.borrow_mut().insert(bar.0 as isize, full)) != Some(full) {
+        crate::util::log(&format!("fullscreen {full} on bar {:?}: {class} {},{} {},{}", bar.0, r.left, r.top, r.right, r.bottom));
+    }
+}
+
 // The topmost large window on the bar's monitor covering the whole monitor (fullscreen video, games) means the bar must
 // get out of the way. Using z-order rather than the foreground window keeps it hidden while another monitor has focus.
 unsafe fn fullscreen_on(bar: HWND) -> bool {
@@ -344,8 +355,12 @@ unsafe fn fullscreen_on(bar: HWND) -> bool {
             if area * 2 < mon_area {
                 continue;
             }
-            return r.left <= m.left && r.top <= m.top && r.right >= m.right && r.bottom >= m.bottom;
+            let slack = 2;
+            let full = r.left <= m.left + slack && r.top <= m.top + slack && r.right >= m.right - slack && r.bottom >= m.bottom - slack;
+            log_fullscreen(bar, full, &class, &r);
+            return full;
         }
+        log_fullscreen(bar, false, "-", &RECT::default());
         false
     }
 }
