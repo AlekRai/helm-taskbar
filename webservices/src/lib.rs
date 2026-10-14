@@ -653,6 +653,11 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
         let Ok(web) = controller.CoreWebView2() else { return };
         let mut token = 0i64;
 
+        // The link-hover status bubble can get stuck on screen when a link opens in the browser.
+        if let Ok(settings) = web.Settings() {
+            let _ = settings.SetIsStatusBarEnabled(false);
+        }
+
         // Calls and screen sharing need mic, camera and screen permissions without prompts.
         let perms = PermissionRequestedEventHandler::create(Box::new(|_, args| {
             if let Some(args) = args {
