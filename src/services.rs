@@ -41,7 +41,7 @@ fn push_opts() {
         stale_hours: o.stale_hours,
         teams_activity: o.teams_activity,
         teams_threads: o.teams_threads,
-        avail: o.teams_available,
+        avail: o.teams_available || clock_state().0 == today(),
         avail_now: avail_window_open(),
         poll_ms: o.poll_s.clamp(1, 120) * 1000,
         panel_widen: o.panel_widen,
@@ -50,6 +50,13 @@ fn push_opts() {
 
 // Whether Teams should be held Available now: a schedule day, between the hold start and end hour.
 fn avail_window_open() -> bool {
+    let (day_in, day_out) = clock_state();
+    if day_out == today() {
+        return false;
+    }
+    if day_in == today() {
+        return true;
+    }
     let o = load_svc();
     let t = unsafe { GetLocalTime() };
     let hour = t.wHour as u32;
@@ -121,11 +128,96 @@ pub(crate) fn group_visible(key: &str) -> bool {
     if key != o.sched_group {
         return true;
     }
+    let (day_in, day_out) = clock_state();
+    if day_out == today() {
+        return false;
+    }
+    if day_in == today() {
+        return true;
+    }
     let t = unsafe { GetLocalTime() };
     let (from, to) = (o.sched_start, o.sched_end);
     let hour = t.wHour as u32;
     let in_hours = if from <= to { (from..to).contains(&hour) } else { hour >= from || hour < to };
     o.sched_days >> t.wDayOfWeek & 1 == 1 && in_hours
+}
+
+fn today() -> u32 {
+    let t = unsafe { GetLocalTime() };
+    t.wYear as u32 * 10000 + t.wMonth as u32 * 100 + t.wDay as u32
+}
+
+fn clock_file() -> Option<std::path::PathBuf> {
+    config_dir().map(|d| d.join("clock.txt"))
+}
+
+// (day clocked in, day clocked out) as YYYYMMDD, 0 when never; kept across restarts.
+fn clock_state() -> (u32, u32) {
+    CLOCK.with(|c| {
+        if c.get().is_none() {
+            let text = clock_file().and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_default();
+            let mut it = text.split_whitespace().map(|s| s.parse().unwrap_or(0));
+            c.set(Some((it.next().unwrap_or(0), it.next().unwrap_or(0))));
+        }
+        c.get().unwrap_or((0, 0))
+    })
+}
+
+fn set_clock_state(s: (u32, u32)) {
+    CLOCK.with(|c| c.set(Some(s)));
+    if let Some(p) = clock_file() {
+        let _ = std::fs::write(p, format!("{} {}", s.0, s.1));
+    }
+}
+
+thread_local! {
+    static CLOCK: std::cell::Cell<Option<(u32, u32)>> = const { std::cell::Cell::new(None) };
+    static CLOCK_OUT_TIMER: slint::Timer = slint::Timer::default();
+}
+
+// Clock in: the Work group shows for the rest of the day and Teams is held Available again.
+fn clock_in() {
+    set_clock_state((today(), 0));
+    push_opts();
+    webservices::run_script("teams", "localStorage.removeItem('__availDay');");
+    schedule();
+}
+
+// Clock out: reset the Teams status first, then drop the Work group for the day.
+fn clock_out() {
+    set_clock_state((0, clock_state().1));
+    push_opts();
+    webservices::run_script("teams", "window.__clockOut && window.__clockOut();");
+    CLOCK_OUT_TIMER.with(|t| {
+        t.start(slint::TimerMode::SingleShot, Duration::from_secs(8), || {
+            set_clock_state((0, today()));
+            schedule();
+        });
+    });
+}
+
+struct ClockProvider(usize);
+
+impl MenuProvider for ClockProvider {
+    fn applies_to(&self, _: &AppInfo) -> bool {
+        true
+    }
+    fn items(&self, _: &AppInfo) -> Vec<MenuItem> {
+        let item = |id, label: &str| MenuItem { id, label: label.into(), enabled: true };
+        let mut v = vec![item(1, "Clock in")];
+        if GROUPS.get(self.0).is_some_and(|g| g.0 == "work") {
+            v.push(item(2, "Clock out"));
+        }
+        v
+    }
+    fn run(&self, id: usize, _: &AppInfo) {
+        if id == 1 { clock_in() } else { clock_out() }
+    }
+}
+
+// Right click on a group button: clock in or out.
+pub(crate) fn group_right_clicked(monitor: isize, kind: usize) {
+    crate::popup::open_menu(monitor, vec![Box::new(ClockProvider(kind))], AppInfo::default());
 }
 
 // The calendar event to show: the one in progress (`true`), else the next one today, with the seconds left.

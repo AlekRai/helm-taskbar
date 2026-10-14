@@ -129,6 +129,11 @@ if (window.top === window) {
     }).then(function (r) { r.click(); });
   }
   var availBusy = false;
+  // Clock out: resets the status now and keeps the hold from running again.
+  window.__clockOut = function () {
+    availBusy = true;
+    resetStatus().then(function () { localStorage.removeItem('__availDay'); }).catch(function (e) { window.__rt.log('clock out: ' + e.message); closeMenus(); });
+  };
   window.__availStep = function () {
     if (availBusy || !window.__rt.opt('avail', false) || !document.querySelector('[data-tid="me-control-avatar-trigger"]')) return;
     var now = window.__rt.opt('availNow', false);

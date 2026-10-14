@@ -353,6 +353,7 @@ component SvcButton inherits Rectangle {
     in property <length> pos;
     in property <length> strip-w;
     callback clicked();
+    callback right-clicked();
     callback hovered(bool);
     callback drag-moved(length);
     callback dropped(length);
@@ -393,6 +394,7 @@ component SvcButton inherits Rectangle {
         pos: root.pos;
         strip-w: root.strip-w;
         activated => { root.clicked(); }
+        right-clicked => { root.right-clicked(); }
         hovered(h) => { root.hovered(h); }
         drag-moved(c) => { root.drag-moved(c); }
         dropped(c) => { root.dropped(c); }
@@ -453,6 +455,7 @@ export component BarWindow inherits Window {
     // Web-service group buttons (Personal, Work), left of the tray.
     in property <[SvcItem]> svc;
     callback svc-clicked(int);
+    callback svc-right-clicked(int);
     callback svc-hovered(int, bool);
     // Strip of meeting chip + group buttons: each button's distance from the strip's right end, and the strip width.
     in property <[length]> svc-pos;
@@ -600,6 +603,7 @@ export component BarWindow inherits Window {
         pos: root.svc-pos[i];
         strip-w: root.strip-w;
         clicked => { root.svc-clicked(i); }
+        right-clicked => { root.svc-right-clicked(s.kind); }
         hovered(h) => { root.svc-hovered(s.kind, h); }
         drag-moved(c) => { root.strip-drag-moved(s.kind, c); }
         dropped(c) => { root.strip-dropped(s.kind, c); }
