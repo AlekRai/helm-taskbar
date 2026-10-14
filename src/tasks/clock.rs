@@ -46,7 +46,7 @@ pub(super) fn set_clock(ui: &BarWindow, parts: &(String, String)) {
 pub(crate) fn update_clocks() {
     let parts = clock_parts();
     // A changed text also forces a repaint, in case a bar's window stopped redrawing (e.g. after sleep or a display change).
-    let changed = LAST_CLOCK.with(|l| l.replace(parts.clone()) != parts);
+    let changed = LAST_CLOCK.with(|l| l.replace(parts.clone()) != parts) | MEET_CHANGED.with(|c| c.replace(false));
     for m in bar_keys() {
         if let Some((ui, hwnd)) = with_bar(m, |b| (b.ui.clone_strong(), b.hwnd)) {
             set_clock(&ui, &parts);
@@ -73,6 +73,8 @@ pub(crate) fn update_clocks() {
 
 thread_local! {
     pub(super) static CLOCK_TIMER: slint::Timer = slint::Timer::default();
+    // Set when the meeting chip's text changed, so the next clock update repaints the bars as well.
+    pub(crate) static MEET_CHANGED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static LAST_CLOCK: std::cell::RefCell<(String, String)> = const { std::cell::RefCell::new((String::new(), String::new())) };
 }
 

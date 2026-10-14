@@ -218,6 +218,9 @@ fn sync_meeting(ui: &BarWindow, on: bool) -> f32 {
     let time_w = snap(unsafe { crate::tasks::measure_text(&time) } * 1.25);
     let title_w = (unsafe { crate::tasks::measure_text(&event.title) } * 1.12 + 4.0).min(220.0);
     let total = time_w + 8.0 + title_w + 12.0;
+    if ui.get_meet_time().as_str() != time {
+        crate::tasks::MEET_CHANGED.with(|c| c.set(true));
+    }
     ui.set_meet_time(time.into());
     ui.set_meet_title(event.title.into());
     ui.set_meet_color(slint::Color::from_rgb_u8(color.0, color.1, color.2));
