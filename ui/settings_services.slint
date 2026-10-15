@@ -83,23 +83,62 @@ export component ServicesTab inherits Rectangle {
             if root.page == -1: VerticalLayout {
                 spacing: 14px;
                 SectionTitle { text: "Services"; }
-                Caption { text: "Pick a service to change its settings. Enabling and disabling apply at once."; }
-                for r[i] in root.rows: Rectangle {
-                    height: 44px;
-                    border-radius: 6px;
-                    background: Theme.hover;
-                    HorizontalLayout {
-                        padding: 6px;
-                        spacing: 12px;
+                Caption { text: "Click a service to change its settings. The box in a corner switches it on or off at once."; }
+                grid := Rectangle {
+                    property <length> gap: 12px;
+                    property <int> cols: Math.max(1, Math.floor((self.width + gap) / (190px + gap)));
+                    property <length> cw: (self.width - (cols - 1) * gap) / cols;
+                    height: Math.ceil(root.rows.length / cols) * (104px + gap);
+                    for r[i] in root.rows: Rectangle {
+                        x: Math.mod(i, grid.cols) * (grid.cw + grid.gap);
+                        y: Math.floor(i / grid.cols) * (104px + grid.gap);
+                        width: grid.cw;
+                        height: 104px;
+                        border-radius: 8px;
+                        background: card-ta.pressed ? Theme.pressed : card-ta.has-hover ? Theme.selected : Theme.hover;
+                        animate background { duration: 100ms; }
+                        card-ta := TouchArea { clicked => { root.page = i; } }
+                        if r.has-icon: Image {
+                            x: 14px;
+                            y: 14px;
+                            width: 36px;
+                            height: 36px;
+                            source: r.icon;
+                            image-fit: contain;
+                        }
+                        if !r.has-icon: Rectangle {
+                            x: 14px;
+                            y: 14px;
+                            width: 36px;
+                            height: 36px;
+                            border-radius: 18px;
+                            background: Theme.accent;
+                            Text { text: r.name; color: Theme.bg; font-size: 18px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                        }
+                        Text {
+                            x: 14px;
+                            y: 58px;
+                            width: parent.width - 28px;
+                            text: r.name;
+                            color: Theme.text;
+                            font-size: 15px;
+                            font-weight: 600;
+                            overflow: elide;
+                        }
+                        Text {
+                            x: 14px;
+                            y: 80px;
+                            text: (r.group == 1 ? "Work" : "Personal") + (r.enabled ? "" : " - off");
+                            color: Theme.text-dim;
+                            font-size: 12px;
+                        }
                         CheckBox {
-                            width: 28px;
-                            y: 8px;
+                            x: parent.width - 34px;
+                            y: 10px;
+                            width: 24px;
                             checked: r.enabled;
                             toggled => { root.row-bool(i, "enabled", self.checked); }
                         }
-                        Text { color: Theme.text; text: r.name; vertical-alignment: center; horizontal-stretch: 1; }
-                        Text { color: Theme.text-dim; text: r.group == 1 ? "Work" : "Personal"; vertical-alignment: center; }
-                        Button { text: "Edit"; clicked => { root.page = i; } }
                     }
                 }
                 Text { color: Theme.text; text: "Add a service"; }

@@ -13,16 +13,22 @@ fn sched_index(group: &str) -> i32 {
 }
 
 pub(super) fn populate_svc(ui: &SettingsWindow) {
+    let icons: std::collections::HashMap<String, isize> = webservices::status().into_iter().map(|s| (s.id, s.icon)).collect();
     let rows: Vec<SvcRow> = load_services()
         .into_iter()
-        .map(|c| SvcRow {
+        .map(|c| {
+            let h = icons.get(&c.id).copied().unwrap_or(0);
+            SvcRow {
+                icon: if h != 0 { cached_icon_image(HICON(h as *mut c_void), 1.0) } else { slint::Image::default() },
+                has_icon: h != 0,
             id: c.id.into(),
             name: c.name.into(),
             url: c.url.into(),
             group: group_index(&c.group),
             enabled: c.enabled,
             flash: c.flash,
-            adapter: c.adapter.into(),
+                adapter: c.adapter.into(),
+            }
         })
         .collect();
     ui.set_svc_rows(ModelRc::new(VecModel::from(rows)));

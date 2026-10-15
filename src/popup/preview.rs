@@ -5,7 +5,7 @@ use windows::Win32::Graphics::Dwm::{
 };
 
 // Live window preview shown above an app button: a plain Win32 popup that hosts a DWM thumbnail.
-// It never takes input or focus; the mouse passes through to the bar.
+// It never takes focus; clicking it opens the window.
 const MAX_W: f32 = 260.0;
 const MAX_H: f32 = 160.0;
 const PAD: f32 = 10.0;
@@ -17,6 +17,8 @@ struct Preview {
     source: Cell<HWND>,
     visible: Cell<bool>,
     hidden_at: Cell<Option<Instant>>,
+    // True while the pointer is over an app button.
+    hovering: Cell<bool>,
     scale: Cell<f32>,
     bar: Cell<RECT>,
     title: RefCell<String>,
@@ -29,6 +31,7 @@ thread_local! {
         source: Cell::new(HWND::default()),
         visible: Cell::new(false),
         hidden_at: Cell::new(None),
+        hovering: Cell::new(false),
         scale: Cell::new(1.0),
         bar: Cell::new(RECT::default()),
         title: RefCell::new(String::new()),
@@ -43,8 +46,10 @@ pub(crate) fn preview_hwnd() -> HWND {
 
 pub(crate) fn preview_hovered(monitor: isize, index: usize, on: bool) {
     SHOW_TIMER.with(|t| t.stop());
+    PREVIEW.with(|p| p.hovering.set(on));
     if !on {
-        hide_preview();
+        // Leaving the button for the preview itself keeps it open.
+        SHOW_TIMER.with(|t| t.start(slint::TimerMode::SingleShot, Duration::from_millis(250), hide_unless_used));
         return;
     }
     let delay = load_ui().preview_delay_ms;
@@ -112,7 +117,7 @@ fn show_preview(monitor: isize, index: usize) {
         let mut cursor = POINT::default();
         let _ = GetCursorPos(&mut cursor);
         let x = (cursor.x - w / 2).clamp(rect.left + GAP, (rect.right - w - GAP).max(rect.left + GAP));
-        let y = rect.top - h - 6;
+        let y = rect.top - h - 2;
         let props = DWM_THUMBNAIL_PROPERTIES {
             dwFlags: DWM_TNP_RECTDESTINATION | DWM_TNP_VISIBLE | DWM_TNP_OPACITY,
             rcDestination: RECT { left: (w - tw) / 2, top: pad + title_h, right: (w - tw) / 2 + tw, bottom: pad + title_h + th },
@@ -132,16 +137,43 @@ fn show_preview(monitor: isize, index: usize) {
         let _ = SetWindowPos(host, Some(HWND_TOPMOST), x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
         let _ = InvalidateRect(Some(host), None, true);
     }
-    WATCH_TIMER.with(|t| t.start(slint::TimerMode::Repeated, Duration::from_millis(400), watch));
+    WATCH_TIMER.with(|t| t.start(slint::TimerMode::Repeated, Duration::from_millis(300), watch));
 }
 
-// Closes the preview when its window is gone or the pointer has left the bar.
-fn watch() {
-    let (src, bar) = PREVIEW.with(|p| (p.source.get(), p.bar.get()));
+fn pointer_on_preview() -> bool {
+    let host = preview_hwnd();
     let mut cursor = POINT::default();
-    let inside = unsafe { GetCursorPos(&mut cursor).is_ok() && PtInRect(&bar, cursor).as_bool() };
-    if !inside || !unsafe { IsWindow(Some(src)) }.as_bool() {
+    let mut r = RECT::default();
+    unsafe { GetCursorPos(&mut cursor).is_ok() && GetWindowRect(host, &mut r).is_ok() && PtInRect(&r, cursor).as_bool() }
+}
+
+fn hide_unless_used() {
+    if !PREVIEW.with(|p| p.hovering.get()) && !pointer_on_preview() {
         hide_preview();
+    }
+}
+
+// Closes the preview when its window is gone or the pointer is on neither a button nor the preview.
+fn watch() {
+    let src = PREVIEW.with(|p| p.source.get());
+    if !unsafe { IsWindow(Some(src)) }.as_bool() {
+        hide_preview();
+    } else {
+        hide_unless_used();
+    }
+}
+
+// Clicking the preview opens its window.
+fn open_source() {
+    let src = PREVIEW.with(|p| p.source.get());
+    hide_preview();
+    unsafe {
+        if IsWindow(Some(src)).as_bool() {
+            if IsIconic(src).as_bool() {
+                let _ = ShowWindow(src, SW_RESTORE);
+            }
+            let _ = SetForegroundWindow(src);
+        }
     }
 }
 
@@ -163,7 +195,7 @@ fn ensure_host() -> Option<HWND> {
         };
         RegisterClassExW(&wc);
         let hwnd = CreateWindowExW(
-            WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TRANSPARENT,
+            WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
             class,
             w!(""),
             WS_POPUP,
@@ -187,7 +219,10 @@ fn ensure_host() -> Option<HWND> {
 unsafe extern "system" fn preview_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     unsafe {
         match msg {
-            WM_NCHITTEST => LRESULT(-1),
+            WM_LBUTTONUP => {
+                open_source();
+                LRESULT(0)
+            }
             WM_MOUSEACTIVATE => LRESULT(3),
             WM_PAINT => {
                 let mut ps = PAINTSTRUCT::default();
