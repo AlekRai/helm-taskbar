@@ -19,7 +19,7 @@ struct Preview {
     hidden_at: Cell<Option<Instant>>,
     // True while the pointer is over an app button.
     hovering: Cell<bool>,
-    // When the pointer last entered an app button; the title scroll runs from this moment, like the button's own.
+    // When the preview appeared; the title scroll runs from this moment.
     hover_since: Cell<Option<Instant>>,
     scale: Cell<f32>,
     bar: Cell<RECT>,
@@ -52,9 +52,6 @@ pub(crate) fn preview_hovered(monitor: isize, index: usize, on: bool, center: f3
     SHOW_TIMER.with(|t| t.stop());
     PREVIEW.with(|p| {
         p.hovering.set(on);
-        if on {
-            p.hover_since.set(Some(Instant::now()));
-        }
     });
     if !on {
         // Leaving the button for the preview itself keeps it open.
@@ -142,12 +139,13 @@ fn show_preview(monitor: isize, index: usize, center: f32) {
             p.bar.set(rect);
             *p.title.borrow_mut() = entry.title.clone();
             p.visible.set(true);
+            p.hover_since.set(Some(Instant::now()));
         });
         let _ = SetWindowPos(host, Some(HWND_TOPMOST), x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
         let _ = InvalidateRect(Some(host), None, true);
     }
     WATCH_TIMER.with(|t| t.start(slint::TimerMode::Repeated, Duration::from_millis(300), watch));
-    SCROLL_TIMER.with(|t| t.start(slint::TimerMode::Repeated, Duration::from_millis(33), || unsafe {
+    SCROLL_TIMER.with(|t| t.start(slint::TimerMode::Repeated, Duration::from_millis(16), || unsafe {
         let host = preview_hwnd();
         let mut r = RECT::default();
         let _ = GetClientRect(host, &mut r);
@@ -334,8 +332,10 @@ unsafe extern "system" fn preview_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPA
                 DrawTextW(mem, &mut text, &mut calc, DT_SINGLELINE | DT_CALCRECT | DT_NOPREFIX);
                 let overflow = (calc.right - bw).max(0);
                 let elapsed = PREVIEW.with(|p| p.hover_since.get()).map_or(0.0, |t| t.elapsed().as_secs_f32());
-                // Same timing as the button: wait 0.4 s, then 40 px per second.
-                let off = ((elapsed - 0.4).max(0.0) * 40.0 * scale).min(overflow as f32) as i32;
+                // Waits 0.4 s, then eases to the end at about 40 px per second.
+                let dur = (overflow as f32 / (40.0 * scale)).max(0.5);
+                let p = ((elapsed - 0.4) / dur).clamp(0.0, 1.0);
+                let off = (overflow as f32 * p * p * (3.0 - 2.0 * p)).round() as i32;
                 if overflow > 0 && elapsed > 0.4 {
                     let mut tr = RECT { left: -off, top: 0, right: -off + calc.right, bottom: bh };
                     DrawTextW(mem, &mut text, &mut tr, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
