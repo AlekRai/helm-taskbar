@@ -45,6 +45,7 @@ pub(super) fn set_clock(ui: &BarWindow, parts: &(String, String)) {
 // Refreshes just the clock text on every bar.
 pub(crate) fn update_clocks() {
     let parts = clock_parts();
+    log_bar_health(&parts.0);
     // A changed text also forces a repaint, in case a bar's window stopped redrawing (e.g. after sleep or a display change).
     let changed = LAST_CLOCK.with(|l| l.replace(parts.clone()) != parts) | MEET_CHANGED.with(|c| c.replace(false));
     for m in bar_keys() {
@@ -72,7 +73,36 @@ pub(crate) fn update_clocks() {
     }
 }
 
+// Every 30 s notes each bar's window state, but writes only when it differs from the last note, so the log stays small.
+fn log_bar_health(clock: &str) {
+    let due = HEALTH_AT.with(|t| {
+        let due = t.get().is_none_or(|at| at.elapsed() >= Duration::from_secs(30));
+        if due {
+            t.set(Some(std::time::Instant::now()));
+        }
+        due
+    });
+    if !due {
+        return;
+    }
+    for m in bar_keys() {
+        let Some(hwnd) = with_bar(m, |b| b.hwnd) else { continue };
+        let mut r = RECT::default();
+        let (visible, iconic, topmost) = unsafe {
+            let _ = GetWindowRect(hwnd, &mut r);
+            (IsWindowVisible(hwnd).as_bool(), IsIconic(hwnd).as_bool(), GetWindowLongW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0 != 0)
+        };
+        let note = format!("visible={visible} iconic={iconic} topmost={topmost} rect={},{},{},{}", r.left, r.top, r.right, r.bottom);
+        let changed = HEALTH.with(|h| h.borrow_mut().insert(m, note.clone()).as_ref() != Some(&note));
+        if changed {
+            log(&format!("bar {m:?} health: {note} (clock {clock})"));
+        }
+    }
+}
+
 thread_local! {
+    static HEALTH_AT: std::cell::Cell<Option<std::time::Instant>> = const { std::cell::Cell::new(None) };
+    static HEALTH: std::cell::RefCell<std::collections::HashMap<isize, String>> = std::cell::RefCell::new(std::collections::HashMap::new());
     pub(super) static CLOCK_TIMER: slint::Timer = slint::Timer::default();
     // Set when the meeting chip's text changed, so the next clock update repaints the bars as well.
     pub(crate) static MEET_CHANGED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
