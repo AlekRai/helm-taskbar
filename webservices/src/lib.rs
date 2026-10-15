@@ -755,7 +755,7 @@ pub fn cached_icon_path(id: &str) -> PathBuf {
 }
 
 // Outlook and Teams don't report a favicon, so their public icons are downloaded once into the cache.
-fn fetch_icon(cfg: &ServiceCfg) {
+pub fn fetch_icon(cfg: &ServiceCfg) {
     use std::os::windows::process::CommandExt;
     let url = match cfg.adapter.as_str() {
         "outlook" => "https://res.cdn.office.net/assets/mail/pwa/v1/pngs/apple-touch-icon.png",

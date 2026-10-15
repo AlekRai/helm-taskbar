@@ -25,6 +25,7 @@ pub(crate) fn start() {
     migrate_profiles(&base);
     webservices::init(base, load_svc().dev, load_svc().low_memory, log);
     push_opts();
+    load_services().iter().for_each(webservices::fetch_icon);
     ACTIVE.with(|a| a.set(GROUPS.map(|(k, _)| group_visible(k))));
     start_active();
 }
