@@ -216,11 +216,38 @@ fn ensure_host() -> Option<HWND> {
     }
 }
 
+// The close button in the top right corner of the title row.
+fn close_rect(client: &RECT, scale: f32) -> RECT {
+    let pad = (PAD * scale).round() as i32;
+    let size = (TITLE_H * scale).round() as i32;
+    RECT { left: client.right - pad - size, top: pad, right: client.right - pad, bottom: pad + size }
+}
+
+fn close_source() {
+    let src = PREVIEW.with(|p| p.source.get());
+    hide_preview();
+    unsafe {
+        let _ = PostMessageW(Some(src), WM_CLOSE, WPARAM(0), LPARAM(0));
+    }
+}
+
 unsafe extern "system" fn preview_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     unsafe {
         match msg {
+            WM_MOUSEMOVE => {
+                let _ = InvalidateRect(Some(hwnd), None, false);
+                LRESULT(0)
+            }
             WM_LBUTTONUP => {
-                open_source();
+                let mut rc = RECT::default();
+                let _ = GetClientRect(hwnd, &mut rc);
+                let scale = PREVIEW.with(|p| p.scale.get());
+                let pt = POINT { x: (lp.0 & 0xffff) as i16 as i32, y: ((lp.0 >> 16) & 0xffff) as i16 as i32 };
+                if PtInRect(&close_rect(&rc, scale), pt).as_bool() {
+                    close_source();
+                } else {
+                    open_source();
+                }
                 LRESULT(0)
             }
             WM_MOUSEACTIVATE => LRESULT(3),
@@ -235,6 +262,28 @@ unsafe extern "system" fn preview_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPA
                 rc.right -= pad;
                 rc.top += pad;
                 rc.bottom = rc.top + (TITLE_H * scale).round() as i32;
+                let mut full = RECT::default();
+                let _ = GetClientRect(hwnd, &mut full);
+                let cr = close_rect(&full, scale);
+                rc.right = cr.left - 4;
+                let mut cur = POINT::default();
+                let _ = GetCursorPos(&mut cur);
+                let _ = ScreenToClient(hwnd, &mut cur);
+                let hot = PtInRect(&cr, cur).as_bool();
+                if hot {
+                    let br = CreateSolidBrush(COLORREF(0x0043_43c4));
+                    FillRect(hdc, &cr, br);
+                    let _ = DeleteObject(br.into());
+                }
+                let pen = CreatePen(PS_SOLID, ((1.5 * scale).round() as i32).max(1), COLORREF(0x00f0_f0f0));
+                let old_pen = SelectObject(hdc, pen.into());
+                let m = ((7.0 * scale).round()) as i32;
+                let _ = MoveToEx(hdc, cr.left + m, cr.top + m, None);
+                let _ = LineTo(hdc, cr.right - m, cr.bottom - m);
+                let _ = MoveToEx(hdc, cr.right - m, cr.top + m, None);
+                let _ = LineTo(hdc, cr.left + m, cr.bottom - m);
+                SelectObject(hdc, old_pen);
+                let _ = DeleteObject(pen.into());
                 let font = CreateFontW(
                     -((13.0 * scale).round() as i32),
                     0,
