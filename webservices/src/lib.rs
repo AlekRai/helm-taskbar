@@ -34,6 +34,7 @@ struct Svc {
     unread: u32,
     meeting: bool,
     attention: bool,
+    signin: bool,
     reported: bool,
     mail: Vec<MailItem>,
     shown: bool,
@@ -114,6 +115,8 @@ pub struct Status {
     pub unread: u32,
     pub meeting: bool,
     pub attention: bool,
+    // The page asks to sign in again.
+    pub signin: bool,
     // Whether new mail makes this service flash.
     pub flash: bool,
     // The window's current icon (an HICON, 0 until the page's favicon arrives).
@@ -494,6 +497,7 @@ pub fn status() -> Vec<Status> {
                 unread: v.unread,
                 meeting: v.meeting,
                 attention: v.attention,
+                signin: v.signin,
                 flash: v.cfg.flash,
                 icon: unsafe {
                     SendMessageW(v.hwnd, WM_GETICON, Some(WPARAM(ICON_BIG as usize)), Some(LPARAM(0))).0
@@ -518,6 +522,7 @@ fn launch(cfg: &ServiceCfg, show: bool) {
             unread: 0,
             meeting: false,
             attention: false,
+            signin: false,
             reported: false,
             mail: Vec::new(),
             shown: false,
@@ -925,6 +930,14 @@ fn on_message(id: &str, msg: &str) {
             })
             .collect();
         EVENTS.with(|e| e.borrow_mut().insert(id.to_string(), list));
+        return;
+    }
+    if a == "signin" {
+        SVCS.with(|s| {
+            if let Some(v) = s.borrow_mut().iter_mut().find(|v| v.cfg.id == id) {
+                v.signin = b == "1";
+            }
+        });
         return;
     }
     if a == "name" {

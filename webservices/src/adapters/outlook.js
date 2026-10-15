@@ -1,5 +1,6 @@
 // Unread count = sum of "(N unread)" over every folder except Junk Email and Deleted Items.
 if (window.top === window) {
+  window.__rt.watchSignin();
   var SKIP = ['junk email', 'deleted items'];
   setInterval(function () {
     var items = document.querySelectorAll('[role="treeitem"][data-folder-name]');

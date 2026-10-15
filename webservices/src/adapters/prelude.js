@@ -22,6 +22,19 @@
       var k = unread + '|' + (meeting ? 1 : 0);
       if (k !== last) { last = k; window.chrome.webview.postMessage(k); }
     },
+    // Reports whether the page shows a "sign in again" notice (session expired).
+    watchSignin: function () {
+      var q = "//*[not(*) and (contains(text(),'You need to sign in') or contains(text(),'session has expired') or contains(text(),'Your session expired') or contains(text(),'Sign in to continue'))]";
+      var lastSign = null;
+      setInterval(function () {
+        var hit = false;
+        try {
+          var r = document.evaluate(q, document.body || document, null, 9, null).singleNodeValue;
+          hit = !!r && (!r.offsetParent && r.getClientRects().length === 0 ? false : true);
+        } catch (e) {}
+        if (hit !== lastSign) { lastSign = hit; window.chrome.webview.postMessage('signin|' + (hit ? 1 : 0)); }
+      }, 3000);
+    },
     log: function (t) { window.chrome.webview.postMessage('log|' + t); },
     // Display name for the service (e.g. the signed-in account).
     name: function (n) {

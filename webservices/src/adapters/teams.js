@@ -3,6 +3,7 @@ if (window.top === window && location.hostname === 'teams.microsoft.com') {
   location.replace(location.href.replace('teams.microsoft.com', 'teams.cloud.microsoft'));
 }
 if (window.top === window) {
+  window.__rt.watchSignin();
   setInterval(function () {
     var bar = document.querySelector('[data-tid="app-bar-wrapper"]');
     if (!bar) return;

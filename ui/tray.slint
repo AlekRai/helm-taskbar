@@ -1,5 +1,5 @@
 import { Theme } from "theme.slint";
-import { TrayItem, SvcItem, GroupIcon, CountBadge, MeetingGlyph } from "bar.slint";
+import { TrayItem, SvcItem, GroupIcon, CountBadge, MeetingGlyph, SigninGlyph } from "bar.slint";
 
 export component TrayFlyout inherits Window {
     no-frame: true;
@@ -150,6 +150,10 @@ export component TrayFlyout inherits Window {
             font-size: 13px;
             overflow: elide;
             vertical-alignment: center;
+        }
+        if s.signin: SigninGlyph {
+            x: 22px;
+            y: parent.height - self.height - 3px;
         }
         if s.meeting: MeetingGlyph {
             x: parent.width - 58px;
