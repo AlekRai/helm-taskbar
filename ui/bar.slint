@@ -26,6 +26,7 @@ component AppButton inherits Rectangle {
     in property <AppItem> app;
     callback clicked();
     callback right-clicked();
+    callback hovered(bool);
     callback dropped(float);
     callback drag-moved(float);
 
@@ -180,6 +181,7 @@ component AppButton inherits Rectangle {
 
     ta := TouchArea {
         mouse-cursor: MouseCursor.default;
+        changed has-hover => { root.hovered(self.has-hover && !root.dragging); }
         clicked => {
             if (!root.suppress-click) { root.clicked(); }
         }
@@ -527,6 +529,7 @@ export component BarWindow inherits Window {
     }
     callback app-clicked(int);
     callback app-right-clicked(int);
+    callback app-hovered(int, bool);
     callback app-reordered(int, float);
     callback app-drag-moved(int, float);
     callback tray-clicked(int, int);
@@ -562,6 +565,7 @@ export component BarWindow inherits Window {
             side-left: root.side-left;
             clicked => { root.app-clicked(i); }
             right-clicked => { root.app-right-clicked(i); }
+            hovered(h) => { root.app-hovered(i, h); }
             dropped(c) => { root.app-reordered(i, c); }
             drag-moved(c) => { root.app-drag-moved(i, c); }
         }

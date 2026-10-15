@@ -29,6 +29,7 @@ pub(crate) unsafe fn activate(monitor: isize, entry: &Entry, foreground: HWND) {
 }
 
 pub(crate) fn on_app_clicked(monitor: isize, index: usize) {
+    crate::popup::hide_preview();
     let target = with_bar(monitor, |b| {
         b.shown.get(index).filter(|s| !s.closing).map(|s| (s.entry.clone(), b.foreground))
     })
@@ -130,6 +131,7 @@ pub(crate) fn on_app_reordered(monitor: isize, index: usize, center: f32) {
 }
 
 pub(crate) fn on_app_right_clicked(monitor: isize, index: usize) {
+    crate::popup::hide_preview();
     let target = with_bar(monitor, |b| {
         b.shown.get(index).filter(|s| !s.closing).map(|s| (s.entry.clone(), b.device.clone()))
     })

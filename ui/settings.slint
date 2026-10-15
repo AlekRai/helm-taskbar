@@ -71,6 +71,7 @@ export component SettingsWindow inherits Window {
     in-out property <int> anim-mode: 2;
     in-out property <int> tip-delay: 450;
     in-out property <int> tray-cols: 5;
+    in-out property <int> preview-delay: 450;
     in-out property <bool> show-cal: true;
     in-out property <bool> show-wifi: true;
     in-out property <bool> show-bt: true;
@@ -454,6 +455,22 @@ export component SettingsWindow inherits Window {
                                 selected(i) => { root.anim-mode = i; root.ui-int("anim_mode", i); }
                             }
                             ResetBtn { visible: root.anim-mode != 2; clicked => { root.reset-field("anim_mode"); } }
+                            Rectangle { }
+                        }
+                    }
+                    Opt {
+                        title: "Window preview delay (ms)";
+                        hint: "Hover an app button to see a live preview of its window. 0 turns previews off.";
+                        HorizontalLayout {
+                            SpinBox {
+                                width: 200px;
+                                minimum: 0;
+                                maximum: 2000;
+                                increment: 50;
+                                value: root.preview-delay;
+                                edited(v) => { root.preview-delay = v; root.ui-int("preview_delay", v); }
+                            }
+                            ResetBtn { visible: root.preview-delay != 450; clicked => { root.reset-field("preview_delay"); } }
                             Rectangle { }
                         }
                     }

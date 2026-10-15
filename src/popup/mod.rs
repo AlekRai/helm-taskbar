@@ -6,6 +6,7 @@ mod context;
 mod dismiss;
 mod flyout;
 mod launcher;
+mod preview;
 mod quick_popup;
 mod tooltip;
 
@@ -14,6 +15,7 @@ pub(crate) use context::*;
 pub(crate) use dismiss::*;
 pub(crate) use flyout::*;
 pub(crate) use launcher::*;
+pub(crate) use preview::*;
 pub(crate) use quick_popup::*;
 pub(crate) use tooltip::*;
 
@@ -154,7 +156,7 @@ pub(crate) fn init_popups() {
 pub(crate) fn popup_owns(h: HWND) -> bool {
     POPUPS.with(|p| match p.try_borrow() {
         Ok(p) => p.as_ref().is_some_and(|p| {
-            [p.menu_hwnd, p.start_hwnd, p.quick_hwnd, p.fly_hwnd, p.tip_hwnd].contains(&h)
+            [p.menu_hwnd, p.start_hwnd, p.quick_hwnd, p.fly_hwnd, p.tip_hwnd, preview_hwnd()].contains(&h)
         }),
         Err(_) => false,
     })

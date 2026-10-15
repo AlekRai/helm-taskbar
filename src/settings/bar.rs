@@ -13,6 +13,7 @@ pub(super) fn populate_ui(ui: &SettingsWindow) {
     ui.set_clock_date(u.clock_date as i32);
     ui.set_anim_mode(u.anim_mode as i32);
     ui.set_tip_delay(u.tip_delay_ms as i32);
+    ui.set_preview_delay(u.preview_delay_ms as i32);
     ui.set_tray_cols(u.tray_cols as i32);
     ui.set_show_cal(u.show_calendar);
     ui.set_show_wifi(u.show_wifi);
@@ -52,6 +53,7 @@ fn wire_fields(ui: &SettingsWindow) {
             "clock_date" => u.clock_date = v.min(5),
             "anim_mode" => u.anim_mode = v.min(3),
             "tip_delay" => u.tip_delay_ms = v,
+            "preview_delay" => u.preview_delay_ms = v.min(2000),
             "tray_cols" => u.tray_cols = v.clamp(2, 10),
             _ => {}
         });
@@ -117,6 +119,7 @@ fn wire_resets(ui: &SettingsWindow) {
             "clock_seconds" => u.clock_seconds = d.clock_seconds,
             "anim_mode" => u.anim_mode = d.anim_mode,
             "tip_delay" => u.tip_delay_ms = d.tip_delay_ms,
+            "preview_delay" => u.preview_delay_ms = d.preview_delay_ms,
             "tray_cols" => u.tray_cols = d.tray_cols,
             _ => {}
         });
@@ -137,6 +140,7 @@ fn wire_resets(ui: &SettingsWindow) {
                 u.clock_seconds = d.clock_seconds;
                 u.clock_date = d.clock_date;
                 u.anim_mode = d.anim_mode;
+                u.preview_delay_ms = d.preview_delay_ms;
             }
             5 => {
                 u.tip_delay_ms = d.tip_delay_ms;

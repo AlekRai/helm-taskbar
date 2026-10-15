@@ -80,6 +80,8 @@ impl Default for ThemeCfg {
 pub(crate) struct UiCfg {
     // Tray tooltip delay; 0 turns tooltips off.
     pub(crate) tip_delay_ms: u32,
+    // Delay before hovering an app button shows its window preview; 0 turns previews off.
+    pub(crate) preview_delay_ms: u32,
     pub(crate) tray_cols: u32,
     pub(crate) show_calendar: bool,
     pub(crate) show_mixer: bool,
@@ -102,6 +104,7 @@ impl Default for UiCfg {
     fn default() -> Self {
         UiCfg {
             tip_delay_ms: 450,
+            preview_delay_ms: 450,
             tray_cols: 5,
             show_calendar: true,
             show_mixer: true,
