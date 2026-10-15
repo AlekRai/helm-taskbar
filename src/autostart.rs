@@ -48,6 +48,7 @@ pub(crate) fn set_enabled(on: bool) {
 
 // First run turns autostart on; afterwards the user's choice wins. An enabled entry is re-pointed at the current exe.
 pub(crate) fn init() {
+    remove_startup_delay();
     let marker = config_dir().map(|d| d.join("autostart_initialized"));
     if let Some(marker) = marker
         && !marker.exists() {
@@ -64,6 +65,24 @@ pub(crate) fn init() {
     }
     if old {
         remove_old_entry();
+    }
+}
+
+// Windows holds Run-key programs back for about ten seconds after sign-in; a zero delay starts Helm at once.
+fn remove_startup_delay() {
+    unsafe {
+        let mut key = HKEY::default();
+        let sub = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize");
+        if RegCreateKeyExW(HKEY_CURRENT_USER, sub, None, PCWSTR::null(), REG_OPTION_NON_VOLATILE, KEY_SET_VALUE | KEY_QUERY_VALUE, None, &mut key, None).is_err() {
+            return;
+        }
+        let mut cur = [0u8; 4];
+        let mut len = 4u32;
+        let ok = RegQueryValueExW(key, w!("StartupDelayInMSec"), None, None, Some(cur.as_mut_ptr()), Some(&mut len)).is_ok();
+        if !ok || u32::from_le_bytes(cur) != 0 {
+            let _ = RegSetValueExW(key, w!("StartupDelayInMSec"), None, REG_DWORD, Some(&0u32.to_le_bytes()));
+        }
+        let _ = RegCloseKey(key);
     }
 }
 

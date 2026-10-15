@@ -78,6 +78,7 @@ fn main() {
     if !autostart::acquire_single_instance() {
         return;
     }
+    util::install_crash_log();
     autostart::init();
     let mut watchdog = autostart::spawn_watchdog();
     unsafe {
@@ -88,9 +89,7 @@ fn main() {
         install_zorder_hooks();
     }
     init_tray();
-    services::start();
     start::install_win_key_hook();
-    start::prewarm();
     // Native handles only exist once the event loop runs, so finish setup quickly there.
     let setup = std::rc::Rc::new(slint::Timer::default());
     let setup2 = setup.clone();
@@ -102,6 +101,9 @@ fn main() {
         refresh_all();
         if all_finalized() && popups_ready() {
             setup2.stop();
+            // Heavy parts start only after the bars have painted.
+            services::start();
+            start::prewarm();
         }
     });
 

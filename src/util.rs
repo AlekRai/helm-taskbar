@@ -5,6 +5,26 @@ pub(crate) fn to_wide(s: &str) -> Vec<u16> {
 }
 
 // Appends a line to %APPDATA%\Helm\log.txt; the file restarts once it passes 256 KB.
+// Writes panics (message, location, backtrace) to crash.txt, which is cleared once it passes 128 KB.
+pub(crate) fn install_crash_log() {
+    use std::io::Write;
+    let prev = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if let Some(dir) = config_dir() {
+            let path = dir.join("crash.txt");
+            let _ = std::fs::create_dir_all(&dir);
+            if std::fs::metadata(&path).is_ok_and(|m| m.len() > 128 * 1024) {
+                let _ = std::fs::remove_file(&path);
+            }
+            let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                let _ = writeln!(f, "[{secs}] {info}\n{}\n", std::backtrace::Backtrace::force_capture());
+            }
+        }
+        prev(info);
+    }));
+}
+
 pub(crate) fn log(msg: &str) {
     use std::io::Write;
     let Some(dir) = config_dir() else { return };
