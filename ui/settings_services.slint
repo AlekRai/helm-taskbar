@@ -23,6 +23,36 @@ component NumOpt inherits Opt {
     }
 }
 
+// Sound picker row: current file name plus Choose / Test / Use default.
+component SoundRow inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> file;
+    in property <string> fallback;
+    callback action(int);
+    spacing: 8px;
+    alignment: start;
+    Text { color: Theme.text-dim; text: root.file == "" ? root.label + ": " + root.fallback : root.label + ": " + root.file; vertical-alignment: center; }
+    Button { text: "Choose file"; clicked => { root.action(0); } }
+    Button { text: "Test"; clicked => { root.action(1); } }
+    Button { text: "Use default"; clicked => { root.action(2); } }
+}
+
+// Header shown on every page below the overview, so it is always clear what is being edited.
+component PageHead inherits Rectangle {
+    in property <string> title;
+    callback back;
+    height: 44px;
+    border-radius: 8px;
+    background: Theme.hover;
+    HorizontalLayout {
+        padding: 6px;
+        spacing: 12px;
+        Button { text: "< Back"; clicked => { root.back(); } }
+        Text { color: Theme.text-dim; text: "Editing:"; vertical-alignment: center; }
+        Text { color: Theme.accent; font-weight: 700; font-size: 16px; text: root.title; vertical-alignment: center; horizontal-stretch: 1; }
+    }
+}
+
 export component ServicesTab inherits Rectangle {
     in property <[SvcRow]> rows;
     in-out property <SvcOptsUi> so;
@@ -36,7 +66,12 @@ export component ServicesTab inherits Rectangle {
     callback opt-day(int, bool);
     callback reset();
     callback sound-action(int);
+    callback signin-sound-action(int);
+    // -1 list of services, -2 options shared by all services, 0.. one service
+    in-out property <int> page: -1;
     property <int> new-group: 0;
+    property <bool> on-svc: root.page >= 0 && root.page < root.rows.length;
+    property <string> kind: root.on-svc ? root.rows[root.page].adapter : "";
 
     ScrollView {
         VerticalLayout {
@@ -44,236 +79,336 @@ export component ServicesTab inherits Rectangle {
             spacing: 14px;
             alignment: start;
 
-            SectionTitle { text: "Services"; }
-            Caption { text: "Name, address and group changes apply the next time the taskbar starts. Enabling, disabling and removing apply at once."; }
-            for r[i] in root.rows: Rectangle {
-                height: 40px;
-                border-radius: 6px;
-                background: Theme.hover;
+            // ---------- overview ----------
+            if root.page == -1: VerticalLayout {
+                spacing: 14px;
+                SectionTitle { text: "Services"; }
+                Caption { text: "Pick a service to change its settings. Enabling and disabling apply at once."; }
+                for r[i] in root.rows: Rectangle {
+                    height: 44px;
+                    border-radius: 6px;
+                    background: Theme.hover;
+                    HorizontalLayout {
+                        padding: 6px;
+                        spacing: 12px;
+                        CheckBox {
+                            width: 28px;
+                            y: 8px;
+                            checked: r.enabled;
+                            toggled => { root.row-bool(i, "enabled", self.checked); }
+                        }
+                        Text { color: Theme.text; text: r.name; vertical-alignment: center; horizontal-stretch: 1; }
+                        Text { color: Theme.text-dim; text: r.group == 1 ? "Work" : "Personal"; vertical-alignment: center; }
+                        Button { text: "Edit"; clicked => { root.page = i; } }
+                    }
+                }
+                Text { color: Theme.text; text: "Add a service"; }
                 HorizontalLayout {
-                    padding: 4px;
                     spacing: 8px;
-                    CheckBox {
-                        width: 28px;
-                        y: 6px;
-                        checked: r.enabled;
-                        toggled => { root.row-bool(i, "enabled", self.checked); }
-                    }
-                    LineEdit {
-                        width: 120px;
-                        text: r.name;
-                        edited(t) => { root.row-text(i, "name", t); }
-                    }
-                    LineEdit {
-                        horizontal-stretch: 1;
-                        text: r.url;
-                        edited(t) => { root.row-text(i, "url", t); }
-                    }
+                    new-name := LineEdit { width: 140px; placeholder-text: "name"; }
+                    new-url := LineEdit { horizontal-stretch: 1; placeholder-text: "https://..."; }
                     Segmented {
                         min-width: 0px;
                         pad: 12px;
                         options: ["Personal", "Work"];
-                        current: r.group;
-                        selected(g) => { root.row-group(i, g); }
+                        current: root.new-group;
+                        selected(g) => { root.new-group = g; }
+                    }
+                    Button {
+                        text: "Add";
+                        clicked => {
+                            root.add(new-name.text, new-url.text, root.new-group);
+                            new-name.text = "";
+                            new-url.text = "";
+                        }
+                    }
+                }
+                Caption { text: "Services added here show a count from the page title, e.g. \"(3) Inbox\"."; }
+                SectionTitle { text: "Settings for every service"; }
+                Caption { text: "Schedule, flashing, sounds, mail lists, badges, memory and developer options."; }
+                HorizontalLayout {
+                    Button { text: "All services settings"; clicked => { root.page = -2; } }
+                    Rectangle { }
+                }
+            }
+
+            // ---------- one service ----------
+            if root.on-svc: VerticalLayout {
+                spacing: 14px;
+                PageHead {
+                    title: name-edit.text;
+                    back => { root.page = -1; }
+                }
+                SectionTitle { text: "General"; }
+                CheckBox {
+                    text: "Enabled";
+                    checked: root.rows[root.page].enabled;
+                    toggled => { root.row-bool(root.page, "enabled", self.checked); }
+                }
+                Opt {
+                    title: "Name";
+                    name-edit := LineEdit {
+                        text: root.rows[root.page].name;
+                        edited(t) => { root.row-text(root.page, "name", t); }
+                    }
+                }
+                Opt {
+                    title: "Address";
+                    hint: "Name, address and group changes apply the next time the taskbar starts.";
+                    LineEdit {
+                        text: root.rows[root.page].url;
+                        edited(t) => { root.row-text(root.page, "url", t); }
+                    }
+                }
+                Opt {
+                    title: "Group";
+                    Segmented {
+                        min-width: 0px;
+                        pad: 12px;
+                        options: ["Personal", "Work"];
+                        current: root.rows[root.page].group;
+                        selected(g) => { root.row-group(root.page, g); }
+                    }
+                }
+                CheckBox {
+                    text: "Flash the taskbar for this service";
+                    checked: root.rows[root.page].flash;
+                    toggled => { root.row-bool(root.page, "flash", self.checked); }
+                }
+
+                if root.kind == "gmail": VerticalLayout {
+                    spacing: 14px;
+                    SectionTitle { text: "Gmail"; }
+                    Caption { text: "Unread count comes from the inbox feed. Mail list and preview options are under All services settings."; }
+                }
+                if root.kind == "messenger": VerticalLayout {
+                    spacing: 14px;
+                    SectionTitle { text: "Messenger"; }
+                    Caption { text: "Muted chats never count, flash or play a sound."; }
+                    NumOpt {
+                        title: "Ignore reaction-only unread older than (hours)";
+                        hint: "Messenger sometimes keeps a chat unread after someone only reacted. 0 never ignores.";
+                        maximum: 720;
+                        value: root.so.stale;
+                        edited(v) => { root.so.stale = v; root.opt-int("stale_hours", v); }
+                    }
+                }
+                if root.kind == "outlook" || root.kind == "teams": VerticalLayout {
+                    spacing: 14px;
+                    SectionTitle { text: "Session expired"; }
+                    CheckBox {
+                        text: "Play a sound when " + root.rows[root.page].name + " asks to sign in again";
+                        checked: root.so.signin;
+                        toggled => { root.so.signin = self.checked; root.opt-bool("signin_alert", self.checked); }
+                    }
+                    SoundRow {
+                        label: "Sound";
+                        file: root.so.signin-sound-name;
+                        fallback: "same as new mail";
+                        action(a) => { root.signin-sound-action(a); }
+                    }
+                    Caption { text: "Applies to both Outlook and Teams. A red ! also shows on the service and its group; click it to open the sign-in."; }
+                }
+                if root.kind == "teams": VerticalLayout {
+                    spacing: 14px;
+                    SectionTitle { text: "Teams" ; }
+                    CheckBox {
+                        text: "Count the Activity badge as well as Chat";
+                        checked: root.so.activity;
+                        toggled => { root.so.activity = self.checked; root.opt-bool("teams_activity", self.checked); }
                     }
                     CheckBox {
-                        width: 66px;
-                        y: 6px;
-                        text: "Flash";
-                        checked: r.flash;
-                        toggled => { root.row-bool(i, "flash", self.checked); }
+                        text: "Keep Followed threads open in the background and list them";
+                        checked: root.so.threads;
+                        toggled => { root.so.threads = self.checked; root.opt-bool("teams_threads", self.checked); }
                     }
-                    Button { text: "Remove"; clicked => { root.row-remove(i); } }
+                    CheckBox {
+                        text: "Hold status as Available during set hours";
+                        checked: root.so.avail;
+                        toggled => { root.so.avail = self.checked; root.opt-bool("teams_available", self.checked); }
+                    }
+                    HorizontalLayout {
+                        visible: root.so.avail;
+                        height: root.so.avail ? self.preferred-height : 0px;
+                        spacing: 20px;
+                        NumOpt {
+                            title: "From (hour)";
+                            maximum: 23;
+                            value: root.so.avail-start;
+                            edited(v) => { root.so.avail-start = v; root.opt-int("avail_start", v); }
+                        }
+                        NumOpt {
+                            title: "To (hour)";
+                            maximum: 24;
+                            value: root.so.avail-end;
+                            edited(v) => { root.so.avail-end = v; root.opt-int("avail_end", v); }
+                        }
+                        Rectangle { }
+                    }
+                    Caption { text: "Runs on the schedule days of the Work group. Outside the hours Teams goes back to automatic status."; }
+                }
+
+                SectionTitle { text: "Remove" ; }
+                HorizontalLayout {
+                    Button {
+                        text: "Remove this service";
+                        clicked => { root.row-remove(root.page); root.page = -1; }
+                    }
+                    Rectangle { }
                 }
             }
-            Text { color: Theme.text; text: "Add a service"; }
-            HorizontalLayout {
-                spacing: 8px;
-                new-name := LineEdit { width: 140px; placeholder-text: "name"; }
-                new-url := LineEdit { horizontal-stretch: 1; placeholder-text: "https://..."; }
-                Segmented {
-                    min-width: 0px;
-                    pad: 12px;
-                    options: ["Personal", "Work"];
-                    current: root.new-group;
-                    selected(g) => { root.new-group = g; }
+
+            // ---------- options shared by all services ----------
+            if root.page == -2: VerticalLayout {
+                spacing: 14px;
+                PageHead {
+                    title: "All services";
+                    back => { root.page = -1; }
                 }
-                Button {
-                    text: "Add";
-                    clicked => {
-                        root.add(new-name.text, new-url.text, root.new-group);
-                        new-name.text = "";
-                        new-url.text = "";
+
+                SectionTitle { text: "Schedule"; }
+                Opt {
+                    title: "Only run during set hours";
+                    hint: "Outside them the group is closed completely: no window, no process, no memory.";
+                    Segmented {
+                        options: ["Off", "Work", "Personal"];
+                        current: root.so.sched-group;
+                        selected(g) => { root.so.sched-group = g; root.opt-int("sched_group", g); }
                     }
                 }
-            }
-            Caption { text: "Services added here show a count from the page title, e.g. \"(3) Inbox\"."; }
+                Text { color: Theme.text; text: "Days"; visible: root.so.sched-group > 0; }
+                HorizontalLayout {
+                    visible: root.so.sched-group > 0;
+                    height: root.so.sched-group > 0 ? self.preferred-height : 0px;
+                    spacing: 10px;
+                    for d[i] in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]: CheckBox {
+                        width: 70px;
+                        text: d;
+                        checked: Math.mod(Math.floor(root.so.days / Math.pow(2, Math.mod(i + 1, 7))), 2) == 1;
+                        toggled => { root.opt-day(Math.mod(i + 1, 7), self.checked); }
+                    }
+                    Rectangle { }
+                }
+                HorizontalLayout {
+                    visible: root.so.sched-group > 0;
+                    height: root.so.sched-group > 0 ? self.preferred-height : 0px;
+                    spacing: 20px;
+                    NumOpt {
+                        title: "From (hour)";
+                        maximum: 23;
+                        value: root.so.start;
+                        edited(v) => { root.so.start = v; root.opt-int("sched_start", v); }
+                    }
+                    NumOpt {
+                        title: "To (hour)";
+                        maximum: 24;
+                        value: root.so.end;
+                        edited(v) => { root.so.end = v; root.opt-int("sched_end", v); }
+                    }
+                    Rectangle { }
+                }
 
-            SectionTitle { text: "Schedule"; }
-            Opt {
-                title: "Only run during set hours";
-                hint: "Outside them the group is closed completely: no window, no process, no memory.";
-                Segmented {
-                    options: ["Off", "Work", "Personal"];
-                    current: root.so.sched-group;
-                    selected(g) => { root.so.sched-group = g; root.opt-int("sched_group", g); }
+                SectionTitle { text: "Flashing and sound"; }
+                CheckBox {
+                    text: "Flash when new mail arrives";
+                    checked: root.so.flash;
+                    toggled => { root.so.flash = self.checked; root.opt-bool("flash", self.checked); }
                 }
-            }
-            Text { color: Theme.text; text: "Days"; visible: root.so.sched-group > 0; }
-            HorizontalLayout {
-                visible: root.so.sched-group > 0;
-                height: root.so.sched-group > 0 ? self.preferred-height : 0px;
-                spacing: 10px;
-                for d[i] in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]: CheckBox {
-                    width: 70px;
-                    text: d;
-                    checked: Math.mod(Math.floor(root.so.days / Math.pow(2, Math.mod(i + 1, 7))), 2) == 1;
-                    toggled => { root.opt-day(Math.mod(i + 1, 7), self.checked); }
+                CheckBox {
+                    text: "Play a sound when new mail arrives";
+                    checked: root.so.sound;
+                    toggled => { root.so.sound = self.checked; root.opt-bool("sound", self.checked); }
                 }
-                Rectangle { }
-            }
-            HorizontalLayout {
-                visible: root.so.sched-group > 0;
-                height: root.so.sched-group > 0 ? self.preferred-height : 0px;
-                spacing: 20px;
+                SoundRow {
+                    label: "Sound";
+                    file: root.so.sound-name;
+                    fallback: "Windows notification";
+                    action(a) => { root.sound-action(a); }
+                }
+                Caption { text: "Each service can also be switched off on its own page."; }
                 NumOpt {
-                    title: "From (hour)";
-                    maximum: 23;
-                    value: root.so.start;
-                    edited(v) => { root.so.start = v; root.opt-int("sched_start", v); }
+                    title: "Settle time (seconds)";
+                    hint: "Mail already there when a service starts doesn't flash during this time.";
+                    maximum: 300;
+                    value: root.so.settle;
+                    edited(v) => { root.so.settle = v; root.opt-int("flash_settle", v); }
                 }
                 NumOpt {
-                    title: "To (hour)";
-                    maximum: 24;
-                    value: root.so.end;
-                    edited(v) => { root.so.end = v; root.opt-int("sched_end", v); }
+                    title: "Hover guard (ms)";
+                    hint: "A mail list ignores the mouse for this long after opening, so it doesn't stop flashing by accident.";
+                    maximum: 3000;
+                    increment: 50;
+                    value: root.so.guard;
+                    edited(v) => { root.so.guard = v; root.opt-int("hover_guard", v); }
                 }
-                Rectangle { }
-            }
 
-            SectionTitle { text: "Flashing"; }
-            CheckBox {
-                text: "Flash when new mail arrives";
-                checked: root.so.flash;
-                toggled => { root.so.flash = self.checked; root.opt-bool("flash", self.checked); }
-            }
-            CheckBox {
-                text: "Play a sound when new mail arrives";
-                checked: root.so.sound;
-                toggled => { root.so.sound = self.checked; root.opt-bool("sound", self.checked); }
-            }
-            HorizontalLayout {
-                spacing: 8px;
-                alignment: start;
-                Text { color: Theme.text-dim; text: root.so.sound-name == "" ? "Sound: Windows notification" : "Sound: " + root.so.sound-name; vertical-alignment: center; }
-                Button { text: "Choose file"; clicked => { root.sound-action(0); } }
-                Button { text: "Test"; clicked => { root.sound-action(1); } }
-                Button { text: "Use default"; clicked => { root.sound-action(2); } }
-            }
-            Caption { text: "Each service can also be switched off in the list above."; }
-            NumOpt {
-                title: "Settle time (seconds)";
-                hint: "Mail already there when a service starts doesn't flash during this time.";
-                maximum: 300;
-                value: root.so.settle;
-                edited(v) => { root.so.settle = v; root.opt-int("flash_settle", v); }
-            }
-            NumOpt {
-                title: "Hover guard (ms)";
-                hint: "A mail list ignores the mouse for this long after opening, so it doesn't stop flashing by accident.";
-                maximum: 3000;
-                increment: 50;
-                value: root.so.guard;
-                edited(v) => { root.so.guard = v; root.opt-int("hover_guard", v); }
-            }
+                SectionTitle { text: "Mail lists"; }
+                CheckBox {
+                    text: "Click a service to list its unread mail";
+                    checked: root.so.list;
+                    toggled => { root.so.list = self.checked; root.opt-bool("mail_list", self.checked); }
+                }
+                CheckBox {
+                    text: "Preview text on hover";
+                    checked: root.so.preview;
+                    toggled => { root.so.preview = self.checked; root.opt-bool("mail_preview", self.checked); }
+                }
+                NumOpt {
+                    title: "Most mails listed";
+                    minimum: 1;
+                    maximum: 20;
+                    value: root.so.max;
+                    edited(v) => { root.so.max = v; root.opt-int("mail_max", v); }
+                }
+                NumOpt {
+                    title: "Refresh interval (seconds)";
+                    hint: "How often Outlook, Messenger and Teams re-read their lists. Gmail never goes below 10.";
+                    minimum: 1;
+                    maximum: 120;
+                    value: root.so.poll;
+                    edited(v) => { root.so.poll = v; root.opt-int("poll", v); }
+                }
 
-            SectionTitle { text: "Mail lists"; }
-            CheckBox {
-                text: "Click a service to list its unread mail";
-                checked: root.so.list;
-                toggled => { root.so.list = self.checked; root.opt-bool("mail_list", self.checked); }
-            }
-            CheckBox {
-                text: "Preview text on hover";
-                checked: root.so.preview;
-                toggled => { root.so.preview = self.checked; root.opt-bool("mail_preview", self.checked); }
-            }
-            NumOpt {
-                title: "Most mails listed";
-                minimum: 1;
-                maximum: 20;
-                value: root.so.max;
-                edited(v) => { root.so.max = v; root.opt-int("mail_max", v); }
-            }
-            NumOpt {
-                title: "Refresh interval (seconds)";
-                hint: "How often Outlook, Messenger and Teams re-read their lists. Gmail never goes below 10.";
-                minimum: 1;
-                maximum: 120;
-                value: root.so.poll;
-                edited(v) => { root.so.poll = v; root.opt-int("poll", v); }
-            }
+                SectionTitle { text: "Mail panel"; }
+                CheckBox {
+                    text: "Open a clicked mail in the panel beside the list";
+                    checked: root.so.panel;
+                    toggled => { root.so.panel = self.checked; root.opt-bool("open_in_panel", self.checked); }
+                }
+                Caption { text: "Off opens it in the service's full window instead."; }
+                CheckBox {
+                    text: "Widen the panel to fit wide mails";
+                    checked: root.so.widen;
+                    toggled => { root.so.widen = self.checked; root.opt-bool("panel_widen", self.checked); }
+                }
 
-            SectionTitle { text: "Mail panel"; }
-            CheckBox {
-                text: "Open a clicked mail in the panel beside the list";
-                checked: root.so.panel;
-                toggled => { root.so.panel = self.checked; root.opt-bool("open_in_panel", self.checked); }
-            }
-            Caption { text: "Off opens it in the service's full window instead."; }
-            CheckBox {
-                text: "Widen the panel to fit wide mails";
-                checked: root.so.widen;
-                toggled => { root.so.widen = self.checked; root.opt-bool("panel_widen", self.checked); }
-            }
+                SectionTitle { text: "Badges"; }
+                NumOpt {
+                    title: "Largest count shown";
+                    hint: "Above it the badge reads, for example, 9+.";
+                    minimum: 1;
+                    maximum: 99;
+                    value: root.so.badge;
+                    edited(v) => { root.so.badge = v; root.opt-int("badge_max", v); }
+                }
 
-            SectionTitle { text: "Badges"; }
-            NumOpt {
-                title: "Largest count shown";
-                hint: "Above it the badge reads, for example, 9+.";
-                minimum: 1;
-                maximum: 99;
-                value: root.so.badge;
-                edited(v) => { root.so.badge = v; root.opt-int("badge_max", v); }
-            }
+                SectionTitle { text: "Memory"; }
+                CheckBox {
+                    text: "Low-memory mode (software rendering, shared renderers, trim hidden pages; applies at next start)";
+                    checked: root.so.low_memory;
+                    toggled => { root.so.low_memory = self.checked; root.opt-bool("low_memory", self.checked); }
+                }
 
-            SectionTitle { text: "Messenger"; }
-            NumOpt {
-                title: "Ignore reaction-only unread older than (hours)";
-                hint: "Messenger sometimes keeps a chat unread after someone only reacted. 0 never ignores.";
-                maximum: 720;
-                value: root.so.stale;
-                edited(v) => { root.so.stale = v; root.opt-int("stale_hours", v); }
-            }
-
-            SectionTitle { text: "Teams"; }
-            CheckBox {
-                text: "Count the Activity badge as well as Chat";
-                checked: root.so.activity;
-                toggled => { root.so.activity = self.checked; root.opt-bool("teams_activity", self.checked); }
-            }
-            CheckBox {
-                text: "Keep Followed threads open in the background and list them";
-                checked: root.so.threads;
-                toggled => { root.so.threads = self.checked; root.opt-bool("teams_threads", self.checked); }
-            }
-
-            SectionTitle { text: "Memory"; }
-            CheckBox {
-                text: "Low-memory mode (software rendering, shared renderers, trim hidden pages; applies at next start)";
-                checked: root.so.low_memory;
-                toggled => { root.so.low_memory = self.checked; root.opt-bool("low_memory", self.checked); }
-            }
-
-            SectionTitle { text: "Developer"; }
-            CheckBox {
-                text: "Dev mode (DevTools port, applies at next start)";
-                checked: root.so.dev;
-                toggled => { root.so.dev = self.checked; root.opt-bool("dev", self.checked); }
-            }
-            HorizontalLayout {
-                Button { text: "Reset service options"; clicked => { root.reset(); } }
-                Rectangle { }
+                SectionTitle { text: "Developer"; }
+                CheckBox {
+                    text: "Dev mode (DevTools port, applies at next start)";
+                    checked: root.so.dev;
+                    toggled => { root.so.dev = self.checked; root.opt-bool("dev", self.checked); }
+                }
+                HorizontalLayout {
+                    Button { text: "Reset service options"; clicked => { root.reset(); } }
+                    Rectangle { }
+                }
             }
         }
     }

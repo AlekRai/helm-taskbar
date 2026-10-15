@@ -697,6 +697,7 @@ export component SettingsWindow inherits Window {
             opt-day(d, v) => { root.svc-opt-day(d, v); }
             reset => { root.svc-reset(); }
             sound-action(a) => { root.svc-sound(a); }
+            signin-sound-action(a) => { root.svc-sound(a + 10); }
         }
         if root.tab == 3: Rectangle {
             vertical-stretch: 1;

@@ -22,6 +22,7 @@ pub(super) fn populate_svc(ui: &SettingsWindow) {
             group: group_index(&c.group),
             enabled: c.enabled,
             flash: c.flash,
+            adapter: c.adapter.into(),
         })
         .collect();
     ui.set_svc_rows(ModelRc::new(VecModel::from(rows)));
@@ -52,6 +53,11 @@ fn populate_svc_opts(ui: &SettingsWindow) {
         end: o.sched_end as i32,
         low_memory: o.low_memory,
         dev: o.dev,
+        signin: o.signin_alert,
+        signin_sound_name: o.signin_sound_file.as_str().into(),
+        avail: o.teams_available,
+        avail_start: o.avail_start as i32,
+        avail_end: o.avail_end as i32,
     });
 }
 
@@ -186,6 +192,8 @@ fn wire_svc_opts(ui: &SettingsWindow) {
             "teams_threads" => o.teams_threads = on,
             "low_memory" => o.low_memory = on,
             "dev" => o.dev = on,
+            "signin_alert" => o.signin_alert = on,
+            "teams_available" => o.teams_available = on,
             _ => {}
         });
     });
@@ -201,6 +209,8 @@ fn wire_svc_opts(ui: &SettingsWindow) {
             "sched_group" => o.sched_group = ["", "work", "personal"][v.min(2) as usize].into(),
             "sched_start" => o.sched_start = v.min(23),
             "sched_end" => o.sched_end = v.min(24),
+            "avail_start" => o.avail_start = v.min(23),
+            "avail_end" => o.avail_end = v.min(24),
             _ => {}
         });
     });
@@ -217,23 +227,25 @@ fn wire_svc_opts(ui: &SettingsWindow) {
     let w = ui.as_weak();
     ui.on_svc_sound(move |action| {
         let Some(ui) = w.upgrade() else { return };
+        let signin = action >= 10;
+        let (stem, action) = if signin { ("signin", action - 10) } else { ("notify", action) };
         match action {
             0 => {
                 let owner = crate::shell::winit_hwnd(ui.window());
                 let Some(src) = super::profiles::pick_sound(owner) else { return };
                 let ext = src.extension().and_then(|e| e.to_str()).unwrap_or("wav").to_lowercase();
-                let name = format!("notify.{ext}");
+                let name = format!("{stem}.{ext}");
                 let Some(dir) = crate::config::config_dir() else { return };
-                if let Some(old) = std::fs::read_dir(&dir).ok().into_iter().flatten().flatten().find(|e| e.file_name().to_string_lossy().starts_with("notify.")) {
+                if let Some(old) = std::fs::read_dir(&dir).ok().into_iter().flatten().flatten().find(|e| e.file_name().to_string_lossy().starts_with(&format!("{stem}."))) {
                     let _ = std::fs::remove_file(old.path());
                 }
                 if std::fs::copy(&src, dir.join(&name)).is_ok() {
-                    edit_svc(|o| o.sound_file = name);
-                    crate::services::notify_sound();
+                    edit_svc(|o| if signin { o.signin_sound_file = name } else { o.sound_file = name });
+                    if signin { crate::services::signin_sound() } else { crate::services::notify_sound() }
                 }
             }
-            1 => crate::services::notify_sound(),
-            _ => edit_svc(|o| o.sound_file.clear()),
+            1 => if signin { crate::services::signin_sound() } else { crate::services::notify_sound() },
+            _ => edit_svc(|o| if signin { o.signin_sound_file.clear() } else { o.sound_file.clear() }),
         }
         populate_svc_opts(&ui);
     });
