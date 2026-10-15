@@ -19,6 +19,8 @@ struct Preview {
     hidden_at: Cell<Option<Instant>>,
     // True while the pointer is over an app button.
     hovering: Cell<bool>,
+    // When the pointer last entered an app button; the title scroll runs from this moment, like the button's own.
+    hover_since: Cell<Option<Instant>>,
     scale: Cell<f32>,
     bar: Cell<RECT>,
     title: RefCell<String>,
@@ -32,21 +34,28 @@ thread_local! {
         visible: Cell::new(false),
         hidden_at: Cell::new(None),
         hovering: Cell::new(false),
+        hover_since: Cell::new(None),
         scale: Cell::new(1.0),
         bar: Cell::new(RECT::default()),
         title: RefCell::new(String::new()),
     };
     static SHOW_TIMER: slint::Timer = slint::Timer::default();
     static WATCH_TIMER: slint::Timer = slint::Timer::default();
+    static SCROLL_TIMER: slint::Timer = slint::Timer::default();
 }
 
 pub(crate) fn preview_hwnd() -> HWND {
     PREVIEW.with(|p| p.hwnd.get())
 }
 
-pub(crate) fn preview_hovered(monitor: isize, index: usize, on: bool) {
+pub(crate) fn preview_hovered(monitor: isize, index: usize, on: bool, center: f32) {
     SHOW_TIMER.with(|t| t.stop());
-    PREVIEW.with(|p| p.hovering.set(on));
+    PREVIEW.with(|p| {
+        p.hovering.set(on);
+        if on {
+            p.hover_since.set(Some(Instant::now()));
+        }
+    });
     if !on {
         // Leaving the button for the preview itself keeps it open.
         SHOW_TIMER.with(|t| t.start(slint::TimerMode::SingleShot, Duration::from_millis(250), hide_unless_used));
@@ -59,12 +68,13 @@ pub(crate) fn preview_hovered(monitor: isize, index: usize, on: bool) {
     // Moving straight to a neighbouring button swaps the preview quickly.
     let recent = PREVIEW.with(|p| p.visible.get() || p.hidden_at.get().is_some_and(|t| t.elapsed() < Duration::from_millis(250)));
     let wait = if recent { 80 } else { delay as u64 };
-    SHOW_TIMER.with(|t| t.start(slint::TimerMode::SingleShot, Duration::from_millis(wait), move || show_preview(monitor, index)));
+    SHOW_TIMER.with(|t| t.start(slint::TimerMode::SingleShot, Duration::from_millis(wait), move || show_preview(monitor, index, center)));
 }
 
 pub(crate) fn hide_preview() {
     SHOW_TIMER.with(|t| t.stop());
     WATCH_TIMER.with(|t| t.stop());
+    SCROLL_TIMER.with(|t| t.stop());
     PREVIEW.with(|p| {
         let thumb = p.thumb.replace(0);
         if thumb != 0 {
@@ -84,7 +94,7 @@ pub(crate) fn hide_preview() {
     });
 }
 
-fn show_preview(monitor: isize, index: usize) {
+fn show_preview(monitor: isize, index: usize, center: f32) {
     if !open_rects().is_empty() {
         return;
     }
@@ -114,9 +124,8 @@ fn show_preview(monitor: isize, index: usize) {
         let (tw, th) = (((size.cx as f32 * fit).round() as i32).max(1), ((size.cy as f32 * fit).round() as i32).max(1));
         let (pad, title_h) = ((PAD * scale).round() as i32, (TITLE_H * scale).round() as i32);
         let (w, h) = (tw.max((120.0 * scale) as i32) + 2 * pad, 2 * pad + title_h + th);
-        let mut cursor = POINT::default();
-        let _ = GetCursorPos(&mut cursor);
-        let x = (cursor.x - w / 2).clamp(rect.left + GAP, (rect.right - w - GAP).max(rect.left + GAP));
+        let mid = rect.left + (center * scale).round() as i32;
+        let x = (mid - w / 2).clamp(rect.left + GAP, (rect.right - w - GAP).max(rect.left + GAP));
         let y = rect.top - h - 2;
         let props = DWM_THUMBNAIL_PROPERTIES {
             dwFlags: DWM_TNP_RECTDESTINATION | DWM_TNP_VISIBLE | DWM_TNP_OPACITY,
@@ -138,6 +147,15 @@ fn show_preview(monitor: isize, index: usize) {
         let _ = InvalidateRect(Some(host), None, true);
     }
     WATCH_TIMER.with(|t| t.start(slint::TimerMode::Repeated, Duration::from_millis(300), watch));
+    SCROLL_TIMER.with(|t| t.start(slint::TimerMode::Repeated, Duration::from_millis(33), || unsafe {
+        let host = preview_hwnd();
+        let mut r = RECT::default();
+        let _ = GetClientRect(host, &mut r);
+        let scale = PREVIEW.with(|p| p.scale.get());
+        let pad = (PAD * scale).round() as i32;
+        let title = RECT { left: pad, top: pad, right: r.right - pad, bottom: pad + (TITLE_H * scale).round() as i32 };
+        let _ = InvalidateRect(Some(host), Some(&title), false);
+    }));
 }
 
 fn pointer_on_preview() -> bool {
@@ -300,12 +318,36 @@ unsafe extern "system" fn preview_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPA
                     0,
                     w!("Segoe UI"),
                 );
-                let old = SelectObject(hdc, font.into());
-                SetBkMode(hdc, TRANSPARENT);
-                SetTextColor(hdc, COLORREF(0x00f0_f0f0));
+                // Drawn off screen so the scrolling text doesn't flicker.
+                let (bw, bh) = (rc.right - rc.left, rc.bottom - rc.top);
+                let mem = CreateCompatibleDC(Some(hdc));
+                let bmp = CreateCompatibleBitmap(hdc, bw.max(1), bh.max(1));
+                let old_bmp = SelectObject(mem, bmp.into());
+                let old = SelectObject(mem, font.into());
+                let bg = CreateSolidBrush(COLORREF(0x0020_2020));
+                FillRect(mem, &RECT { left: 0, top: 0, right: bw, bottom: bh }, bg);
+                let _ = DeleteObject(bg.into());
+                SetBkMode(mem, TRANSPARENT);
+                SetTextColor(mem, COLORREF(0x00f0_f0f0));
                 let mut text: Vec<u16> = title.encode_utf16().collect();
-                DrawTextW(hdc, &mut text, &mut rc, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
-                SelectObject(hdc, old);
+                let mut calc = RECT { left: 0, top: 0, right: 0, bottom: bh };
+                DrawTextW(mem, &mut text, &mut calc, DT_SINGLELINE | DT_CALCRECT | DT_NOPREFIX);
+                let overflow = (calc.right - bw).max(0);
+                let elapsed = PREVIEW.with(|p| p.hover_since.get()).map_or(0.0, |t| t.elapsed().as_secs_f32());
+                // Same timing as the button: wait 0.4 s, then 40 px per second.
+                let off = ((elapsed - 0.4).max(0.0) * 40.0 * scale).min(overflow as f32) as i32;
+                if overflow > 0 && elapsed > 0.4 {
+                    let mut tr = RECT { left: -off, top: 0, right: -off + calc.right, bottom: bh };
+                    DrawTextW(mem, &mut text, &mut tr, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+                } else {
+                    let mut tr = RECT { left: 0, top: 0, right: bw, bottom: bh };
+                    DrawTextW(mem, &mut text, &mut tr, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+                }
+                let _ = BitBlt(hdc, rc.left, rc.top, bw, bh, Some(mem), 0, 0, SRCCOPY);
+                SelectObject(mem, old);
+                SelectObject(mem, old_bmp);
+                let _ = DeleteObject(bmp.into());
+                let _ = DeleteDC(mem);
                 let _ = DeleteObject(font.into());
                 let _ = EndPaint(hwnd, &ps);
                 LRESULT(0)

@@ -138,7 +138,7 @@ unsafe fn create_bar(monitor: isize, rect: RECT) {
         ui.set_apps(ModelRc::from(model.clone()));
         ui.on_app_clicked(move |i| on_app_clicked(monitor, i as usize));
         ui.on_app_right_clicked(move |i| on_app_right_clicked(monitor, i as usize));
-        ui.on_app_hovered(move |i, on| crate::popup::preview_hovered(monitor, i as usize, on));
+        ui.on_app_hovered(move |i, on, cx| crate::popup::preview_hovered(monitor, i as usize, on, cx));
         ui.on_app_reordered(move |i, c| on_app_reordered(monitor, i as usize, c));
         ui.on_app_drag_moved(move |i, c| on_app_drag_moved(monitor, i as usize, c));
         ui.on_clock_clicked(move || on_clock_clicked(monitor));
