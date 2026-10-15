@@ -18,9 +18,11 @@ pub(super) fn populate_svc(ui: &SettingsWindow) {
         .into_iter()
         .map(|c| {
             let h = icons.get(&c.id).copied().unwrap_or(0);
+            let cached = (h == 0).then(|| slint::Image::load_from_path(&webservices::cached_icon_path(&c.id)).ok()).flatten();
             SvcRow {
-                icon: if h != 0 { cached_icon_image(HICON(h as *mut c_void), 1.0) } else { slint::Image::default() },
-                has_icon: h != 0,
+                icon: if h != 0 { cached_icon_image(HICON(h as *mut c_void), 1.0) } else { cached.clone().unwrap_or_default() },
+                has_icon: h != 0 || cached.is_some(),
+                letter: c.name.chars().next().map(|ch| ch.to_uppercase().to_string()).unwrap_or_default().into(),
             id: c.id.into(),
             name: c.name.into(),
             url: c.url.into(),

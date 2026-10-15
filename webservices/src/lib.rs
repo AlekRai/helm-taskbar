@@ -713,9 +713,10 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
 
         // The page's favicon becomes the window (and so the taskbar button) icon.
         if let Ok(web15) = web.cast::<ICoreWebView2_15>() {
+            let icon_id = cfg.id.clone();
             let changed = FaviconChangedEventHandler::create(Box::new(move |sender, _| {
                 if let Some(web15) = sender.and_then(|w| w.cast::<ICoreWebView2_15>().ok()) {
-                    request_icon(&web15, hwnd);
+                    request_icon(&web15, hwnd, &icon_id);
                 }
                 Ok(())
             }));
@@ -747,12 +748,23 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
     });
 }
 
-fn request_icon(web: &ICoreWebView2_15, hwnd: HWND) {
+// Where a service's last favicon is kept, so settings can show it while the service is not running.
+pub fn cached_icon_path(id: &str) -> PathBuf {
+    SETTINGS.with(|s| s.borrow().base.join("icons").join(format!("{id}.png")))
+}
+
+fn request_icon(web: &ICoreWebView2_15, hwnd: HWND, id: &str) {
+    let id = id.to_string();
     let done = GetFaviconCompletedHandler::create(Box::new(move |res, stream| {
         if res.is_ok()
             && let Some(bytes) = stream.and_then(|s| read_stream(&s))
         {
             set_window_icon(hwnd, &bytes);
+            let path = cached_icon_path(&id);
+            if let Some(dir) = path.parent() {
+                let _ = std::fs::create_dir_all(dir);
+            }
+            let _ = std::fs::write(path, &bytes);
         }
         Ok(())
     }));
