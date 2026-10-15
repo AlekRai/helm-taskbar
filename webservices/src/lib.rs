@@ -509,6 +509,7 @@ pub fn status() -> Vec<Status> {
 }
 
 fn launch(cfg: &ServiceCfg, show: bool) {
+    fetch_icon(cfg);
     let panel = cfg.id == PANEL_ID;
     let Some(hwnd) = (unsafe { create_window_ex(&cfg.name, show, panel) }) else {
         log(&format!("service {}: window creation failed", cfg.id));
@@ -751,6 +752,54 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
 // Where a service's last favicon is kept, so settings can show it while the service is not running.
 pub fn cached_icon_path(id: &str) -> PathBuf {
     SETTINGS.with(|s| s.borrow().base.join("icons").join(format!("{id}.png")))
+}
+
+// Outlook and Teams don't report a favicon, so their public icons are downloaded once into the cache.
+fn fetch_icon(cfg: &ServiceCfg) {
+    use std::os::windows::process::CommandExt;
+    let url = match cfg.adapter.as_str() {
+        "outlook" => "https://res.cdn.office.net/assets/mail/pwa/v1/pngs/apple-touch-icon.png",
+        "teams" => "https://teams.public.onecdn.static.microsoft/evergreen-assets/icons/microsoft_teams_logo_refresh_v2025.ico",
+        _ => return,
+    };
+    let path = cached_icon_path(&cfg.id);
+    if path.exists() {
+        return;
+    }
+    std::thread::spawn(move || {
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let tmp = path.with_extension("dl");
+        let ok = std::process::Command::new("curl.exe")
+            .args(["-sL", "--max-time", "20", "-o"])
+            .arg(&tmp)
+            .arg(url)
+            .creation_flags(0x0800_0000)
+            .status()
+            .is_ok_and(|s| s.success());
+        let Some(bytes) = ok.then(|| std::fs::read(&tmp).ok()).flatten() else { return };
+        let _ = std::fs::remove_file(&tmp);
+        let png = if bytes.starts_with(&[0x89, b'P', b'N', b'G']) { Some(bytes) } else { png_from_ico(&bytes) };
+        if let Some(png) = png {
+            let _ = std::fs::write(path, png);
+        }
+    });
+}
+
+// The largest frame of an .ico that is stored as PNG.
+fn png_from_ico(b: &[u8]) -> Option<Vec<u8>> {
+    let n = u16::from_le_bytes(b.get(4..6)?.try_into().ok()?) as usize;
+    (0..n)
+        .filter_map(|i| {
+            let e = b.get(6 + 16 * i..22 + 16 * i)?;
+            let size = u32::from_le_bytes(e[8..12].try_into().ok()?) as usize;
+            let off = u32::from_le_bytes(e[12..16].try_into().ok()?) as usize;
+            let data = b.get(off..off + size)?;
+            // Skip the huge 256px frame; 64px or smaller is plenty.
+            (data.starts_with(&[0x89, b'P', b'N', b'G']) && size < 20_000).then(|| data.to_vec())
+        })
+        .max_by_key(Vec::len)
 }
 
 fn request_icon(web: &ICoreWebView2_15, hwnd: HWND, id: &str) {
