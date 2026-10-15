@@ -140,6 +140,9 @@ pub(crate) struct SvcOpts {
     pub(crate) sound: bool,
     // Custom sound (wav, mp3, ...) kept in the config folder; empty uses the Windows sound.
     pub(crate) sound_file: String,
+    // Sound when a service's session expires (sign-in needed); the custom file, else the alert sound above.
+    pub(crate) signin_alert: bool,
+    pub(crate) signin_sound_file: String,
     // Seconds after a service starts during which already-present mails don't count as new.
     pub(crate) flash_settle_s: u32,
     // A mail list ignores hover for this long after opening.
@@ -187,6 +190,8 @@ impl Default for SvcOpts {
             flash: true,
             sound: true,
             sound_file: String::new(),
+            signin_alert: true,
+            signin_sound_file: String::new(),
             flash_settle_s: 20,
             hover_guard_ms: 700,
             mail_list: true,

@@ -148,6 +148,7 @@ unsafe fn create_bar(monitor: isize, rect: RECT) {
         ui.on_overflow_clicked(move || crate::popup::toggle_tray_flyout(monitor));
         ui.on_svc_clicked(move |i| crate::popup::toggle_services_flyout(monitor, i as usize));
         ui.on_svc_right_clicked(move |k| crate::services::group_right_clicked(monitor, k as usize));
+        ui.on_svc_signin_clicked(|k| crate::services::signin_clicked(k as usize));
         ui.on_clock_hovered(move |on| crate::popup::clock_hovered(monitor, on));
         ui.on_meet_clicked(crate::services::meeting_clicked);
         ui.on_meet_right_clicked(move || crate::services::meeting_right_clicked(monitor));

@@ -528,6 +528,7 @@ thread_local! {
     // Mail urls ever listed, those new since start-up that still flash, and when each service was first seen.
     static SEEN: std::cell::RefCell<std::collections::HashSet<String>> = std::cell::RefCell::new(std::collections::HashSet::new());
     static FLASH: std::cell::RefCell<std::collections::HashSet<String>> = std::cell::RefCell::new(std::collections::HashSet::new());
+    static SIGNIN: std::cell::RefCell<std::collections::HashMap<String, bool>> = std::cell::RefCell::new(std::collections::HashMap::new());
     static COUNTS: std::cell::RefCell<std::collections::HashMap<String, i64>> = std::cell::RefCell::new(std::collections::HashMap::new());
     static FIRST: std::cell::RefCell<std::collections::HashMap<String, std::time::Instant>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
@@ -538,6 +539,7 @@ thread_local! {
 pub(crate) fn track_mail() {
     let settle = std::time::Duration::from_secs(load_svc().flash_settle_s as u64);
     let mut chime = false;
+    let mut expired = false;
     let all = webservices::status();
     // Mails that are no longer unread stop flashing.
     FLASH.with(|f| f.borrow_mut().retain(|u| all.iter().any(|s| s.mail.iter().any(|m| m.url == *u))));
@@ -555,6 +557,9 @@ pub(crate) fn track_mail() {
                 chime = true;
             }
         }
+        if SIGNIN.with(|m| m.borrow_mut().insert(s.id.clone(), s.signin)) == Some(false) && s.signin {
+            expired = true;
+        }
         // Any rise in a service's unread count is a notification too (covers services without a mail list and re-unread mail).
         let prev = COUNTS.with(|c| c.borrow_mut().insert(s.id.clone(), s.unread as i64));
         if settled && prev.is_some_and(|p| (s.unread as i64) > p) {
@@ -564,14 +569,38 @@ pub(crate) fn track_mail() {
     if chime && load_svc().sound {
         notify_sound();
     }
+    if expired && load_svc().signin_alert {
+        signin_sound();
+    }
+}
+
+// Group button !: opens every service of the group that needs signing in again.
+pub(crate) fn signin_clicked(kind: usize) {
+    let Some((key, _)) = GROUPS.get(kind) else { return };
+    for s in webservices::status().iter().filter(|s| s.group == *key && s.signin) {
+        webservices::open(&s.id);
+    }
 }
 
 // Plays the custom sound if one is set, else the Windows notification sound.
 pub(crate) fn notify_sound() {
+    play_sound(&load_svc().sound_file.clone());
+}
+
+// The session-expired sound: its own file when set, else the regular alert sound.
+pub(crate) fn signin_sound() {
+    let file = load_svc().signin_sound_file.clone();
+    if file.is_empty() || !config_dir().unwrap_or_default().join(&file).is_file() {
+        notify_sound();
+    } else {
+        play_sound(&file);
+    }
+}
+
+fn play_sound(file: &str) {
     use windows::Win32::Media::Audio::{PlaySoundW, SND_ALIAS, SND_ASYNC, SND_NODEFAULT};
     use windows::Win32::Media::Multimedia::mciSendStringW;
-    let file = load_svc().sound_file.clone();
-    let path = crate::config::config_dir().unwrap_or_default().join(&file);
+    let path = crate::config::config_dir().unwrap_or_default().join(file);
     if !file.is_empty() && path.is_file() {
         let cmd = |s: String| {
             let w = to_wide(&s);
