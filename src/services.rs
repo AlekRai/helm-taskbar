@@ -237,10 +237,48 @@ fn meeting_now() -> Option<(webservices::CalEvent, i64, bool)> {
     Some((e.clone(), e.start - now, false))
 }
 
-// Clicking the chip joins the meeting through its Teams link.
-pub(crate) fn meeting_clicked() {
-    if let Some((event, _, _)) = meeting_now() {
-        webservices::meeting_action("join", &event);
+// Today's meetings in start order, as listed in the meeting flyout.
+fn meeting_events() -> Vec<webservices::CalEvent> {
+    if !group_visible("work") {
+        return Vec::new();
+    }
+    let t = unsafe { GetLocalTime() };
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+    let day_start = now - (t.wHour as i64 * 3600 + t.wMinute as i64 * 60 + t.wSecond as i64);
+    let mut events: Vec<_> = webservices::calendar().into_iter().filter(|e| e.end > day_start && e.start < day_start + 86400).collect();
+    events.sort_by_key(|e| e.start);
+    events.truncate(12);
+    events
+}
+
+pub(crate) fn meeting_rows() -> Vec<MeetRow> {
+    let t = unsafe { GetLocalTime() };
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+    let day_start = now - (t.wHour as i64 * 3600 + t.wMinute as i64 * 60 + t.wSecond as i64);
+    let clock = |secs: i64| {
+        let s = (secs - day_start).rem_euclid(86400);
+        format!("{:02}:{:02}", s / 3600, s % 3600 / 60)
+    };
+    meeting_events()
+        .into_iter()
+        .map(|e| MeetRow {
+            time: format!("{} \u{2013} {}", clock(e.start), clock(e.end)).into(),
+            state: if e.end <= now { 0 } else if e.start <= now { 1 } else { 2 },
+            status: match e.status.as_str() {
+                "accepted" => "Accepted",
+                "tentative" => "Tentative",
+                _ => "",
+            }
+            .into(),
+            title: e.title.into(),
+        })
+        .collect()
+}
+
+// Join button of the n-th meeting row.
+pub(crate) fn meeting_join(index: usize) {
+    if let Some(event) = meeting_events().get(index) {
+        webservices::meeting_action("join", event);
     }
 }
 

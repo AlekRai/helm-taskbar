@@ -1,6 +1,14 @@
 import { Theme } from "theme.slint";
 import { TrayItem, SvcItem, GroupIcon, CountBadge, MeetingGlyph, SigninGlyph } from "bar.slint";
 
+// One of today's meetings in the meeting flyout; state is 0 past, 1 in progress, 2 upcoming.
+export struct MeetRow {
+    title: string,
+    time: string,
+    state: int,
+    status: string,
+}
+
 export component TrayFlyout inherits Window {
     no-frame: true;
     always-on-top: true;
@@ -20,6 +28,9 @@ export component TrayFlyout inherits Window {
     // Row of the service whose mail panel is open, and the mail row currently shown (-1: none).
     in property <int> sel-svc: -1;
     in property <int> sel-mail: -1;
+    // Today's meetings (the meeting chip's flyout), each with a Join button unless already over.
+    in property <[MeetRow]> meets;
+    callback meet-join(int);
     callback clicked(int, int);
     callback hovered(int, bool);
     callback svc-clicked(int);
@@ -105,6 +116,62 @@ export component TrayFlyout inherits Window {
         width: 1px;
         height: parent.height - 16px;
         background: Theme.popup-border;
+    }
+
+    for e[i] in root.meets: Rectangle {
+        x: 6px;
+        y: 6px + i * 46px;
+        width: root.width - 12px;
+        height: 44px;
+        border-radius: Theme.button-radius;
+        background: e.state == 1 ? #3ecf6e22 : transparent;
+        if e.state == 1: Rectangle {
+            x: 0px;
+            y: 8px;
+            width: 3px;
+            height: parent.height - 16px;
+            border-radius: 1.5px;
+            background: #3ecf6e;
+        }
+        Text {
+            x: 14px;
+            y: 5px;
+            width: parent.width - 90px;
+            height: 16px;
+            text: e.status == "" ? e.time : "\{e.time}  \u{00b7}  \{e.status}";
+            color: e.state == 1 ? #3ecf6e : Theme.text-dim;
+            font-size: 11px;
+            overflow: elide;
+        }
+        Text {
+            x: 14px;
+            y: 21px;
+            width: parent.width - 90px;
+            height: 18px;
+            text: e.title;
+            color: e.state == 0 ? Theme.text-dim : Theme.text;
+            font-size: 13px;
+            overflow: elide;
+        }
+        if e.state != 0: Rectangle {
+            x: parent.width - 66px;
+            y: 10px;
+            width: 56px;
+            height: 24px;
+            border-radius: Theme.button-radius;
+            background: jta.pressed ? Theme.accent.darker(0.2) : jta.has-hover ? Theme.accent.brighter(0.15) : Theme.accent;
+            Text {
+                text: "Join";
+                color: #ffffff;
+                font-size: 12px;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            jta := TouchArea {
+                clicked => { root.meet-join(i); }
+            }
+        }
     }
 
     for s[i] in root.svcs: Rectangle {

@@ -34,6 +34,7 @@ pub(crate) fn toggle_tray_flyout(monitor: isize) {
     }
     ui.set_svcs(ModelRc::default());
     ui.set_mail(ModelRc::default());
+    ui.set_meets(ModelRc::default());
     let (cols, w, h) = fly_size(items.len(), scale);
     ui.set_cols(cols);
     ui.set_items(ModelRc::new(VecModel::from(items)));
@@ -100,10 +101,80 @@ pub(crate) fn toggle_services_flyout(monitor: isize, kind: usize) {
     }
     ui.set_items(ModelRc::default());
     ui.set_mail(ModelRc::default());
+    ui.set_meets(ModelRc::default());
     ui.set_sel_svc(-1);
     ui.set_svcs(ModelRc::new(VecModel::from(rows.into_iter().map(|r| r.0).collect::<Vec<_>>())));
     let (w, h) = svc_fly_size(ui.get_svcs().row_count(), scale);
     show_fly(hwnd, rect, w, h, scale);
+}
+
+const MEET_FLY_WIDTH: f32 = 340.0;
+
+// Opens the flyout listing today's meetings, each with a Join button.
+pub(crate) fn toggle_meeting_flyout(monitor: isize) {
+    hide_tip();
+    if POPUPS.with(|p| p.borrow().as_ref().is_some_and(|p| p.fly_open)) {
+        close_popups();
+        return;
+    }
+    let recent = TRACK
+        .with(|t| t.closed_at.take())
+        .is_some_and(|(t, k, m)| k == 3 && m == monitor && t.elapsed() < Duration::from_millis(400))
+        && TRACK.with(|t| t.fly_kind.get()) == MEET_KIND;
+    let rows = crate::services::meeting_rows();
+    let Some((rect, scale)) = with_bar(monitor, |b| (b.rect, b.scale)) else { return };
+    if recent || rows.is_empty() {
+        return;
+    }
+    TRACK.with(|t| {
+        t.open_mon.set(monitor);
+        t.fly_mon.set(monitor);
+        t.fly_kind.set(MEET_KIND);
+    });
+    close_popups();
+    let Some((ui, hwnd)) = POPUPS.with(|p| p.borrow().as_ref().map(|p| (p.fly.clone_strong(), p.fly_hwnd))) else {
+        return;
+    };
+    if hwnd.0.is_null() {
+        return;
+    }
+    ui.set_items(ModelRc::default());
+    ui.set_mail(ModelRc::default());
+    ui.set_svcs(ModelRc::default());
+    ui.set_sel_svc(-1);
+    let n = rows.len();
+    ui.set_meets(ModelRc::new(VecModel::from(rows)));
+    show_fly(hwnd, rect, (MEET_FLY_WIDTH * scale).round() as i32, ((n as f32 * 46.0 + 10.0) * scale).round() as i32, scale);
+}
+
+// Keeps the open meeting flyout's states current; closes it when nothing is left.
+fn refresh_meetings() {
+    let Some((ui, hwnd)) = POPUPS.with(|p| p.try_borrow().ok().and_then(|p| p.as_ref().map(|p| (p.fly.clone_strong(), p.fly_hwnd)))) else {
+        return;
+    };
+    let rows = crate::services::meeting_rows();
+    let current = ui.get_meets();
+    if rows.is_empty() {
+        close_popups();
+        return;
+    }
+    if rows.len() != current.row_count() {
+        let scale = with_bar(TRACK.with(|t| t.fly_mon.get()), |b| b.scale).unwrap_or(1.0);
+        let h = ((rows.len() as f32 * 46.0 + 10.0) * scale).round() as i32;
+        ui.set_meets(ModelRc::new(VecModel::from(rows)));
+        unsafe {
+            let mut r = RECT::default();
+            if GetWindowRect(hwnd, &mut r).is_ok() {
+                let _ = SetWindowPos(hwnd, None, r.left, r.bottom - h, r.right - r.left, h, SWP_NOACTIVATE | SWP_NOZORDER);
+            }
+        }
+        return;
+    }
+    for (i, r) in rows.into_iter().enumerate() {
+        if current.row_data(i).is_none_or(|c| c != r) {
+            current.set_row_data(i, r);
+        }
+    }
 }
 
 // Opens the n-th row of the open services flyout: a service (Gmail with unread mail also gets a
@@ -255,6 +326,10 @@ fn show_mail_list(id: String, svc_row: usize, rows: Vec<(SvcItem, Option<String>
 pub(crate) fn refresh_services_flyout() {
     let open = POPUPS.with(|p| p.try_borrow().ok().is_some_and(|p| p.as_ref().is_some_and(|p| p.fly_open)));
     let kind = TRACK.with(|t| t.fly_kind.get());
+    if open && kind == MEET_KIND {
+        refresh_meetings();
+        return;
+    }
     if !open || kind < 0 {
         return;
     }
