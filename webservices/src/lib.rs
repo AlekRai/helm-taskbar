@@ -676,6 +676,8 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
         // Sign-in pop-ups load in the same view, same-site and Microsoft links open normally,
         // and everything else goes to the default browser.
         let own = site(&cfg.url);
+        let own_host = host_of(&cfg.url);
+        let strict = cfg.adapter == "gmail";
         let popups = NewWindowRequestedEventHandler::create(Box::new(move |sender, args| {
             let Some(args) = args else { return Ok(()) };
             let mut uri = PWSTR::null();
@@ -691,9 +693,9 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
                     let u = wide(&uri);
                     let _ = web.Navigate(PCWSTR(u.as_ptr()));
                 }
-            } else if site(&uri) != own && !is_microsoft(&host) {
+            } else if (site(&uri) != own && !is_microsoft(&host)) || (strict && host != own_host) {
                 args.SetHandled(true)?;
-                let u = wide(&uri);
+                let u = wide(&unwrap_redirect(&uri));
                 ShellExecuteW(None, w!("open"), PCWSTR(u.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL);
             }
             Ok(())
@@ -851,6 +853,32 @@ fn set_window_icon(hwnd: HWND, png: &[u8]) {
             }
         }
     }
+}
+
+// Gmail wraps mail links as google.com/url?q=<target>; opens the target itself.
+fn unwrap_redirect(uri: &str) -> String {
+    if host_of(uri).ends_with("google.com") && uri.contains("/url?")
+        && let Some(q) = uri.split(['?', '&']).find_map(|p| p.strip_prefix("q=").or_else(|| p.strip_prefix("url=")))
+    {
+        let mut out = Vec::new();
+        let b = q.as_bytes();
+        let mut i = 0;
+        while i < b.len() {
+            if b[i] == b'%' && i + 2 < b.len() + 0 && let Ok(v) = u8::from_str_radix(&q[i + 1..i + 3], 16) {
+                out.push(v);
+                i += 3;
+            } else {
+                out.push(if b[i] == b'+' { b' ' } else { b[i] });
+                i += 1;
+            }
+        }
+        if let Ok(s) = String::from_utf8(out)
+            && s.starts_with("http")
+        {
+            return s;
+        }
+    }
+    uri.to_string()
 }
 
 fn host_of(uri: &str) -> String {
