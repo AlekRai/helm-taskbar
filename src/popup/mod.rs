@@ -153,6 +153,11 @@ pub(crate) fn init_popups() {
     crate::theme::apply_popup_theme(&load_theme());
 }
 
+// True while the Start menu is shown.
+pub(crate) fn start_menu_open() -> bool {
+    POPUPS.with(|p| p.try_borrow().ok().is_some_and(|p| p.as_ref().is_some_and(|p| p.start_open)))
+}
+
 pub(crate) fn popup_owns(h: HWND) -> bool {
     POPUPS.with(|p| match p.try_borrow() {
         Ok(p) => p.as_ref().is_some_and(|p| {

@@ -377,7 +377,8 @@ pub(crate) unsafe fn position_bar(monitor: isize) {
             return;
         }
         let visible = IsWindowVisible(hwnd).as_bool();
-        if fullscreen_on(hwnd) {
+        // The bar stays up while the Start menu is open, even over a fullscreen window.
+        if fullscreen_on(hwnd) && !crate::popup::start_menu_open() {
             // Sinking below the fullscreen window (rather than hiding) keeps the bar's rendering intact.
             if GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0 != 0 {
                 let _ = SetWindowPos(hwnd, Some(HWND_BOTTOM), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
