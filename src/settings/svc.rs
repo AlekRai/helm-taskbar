@@ -30,6 +30,8 @@ pub(super) fn populate_svc(ui: &SettingsWindow) {
             enabled: c.enabled,
             flash: c.flash,
                 adapter: c.adapter.into(),
+                file1: "".into(),
+                file2: "".into(),
             }
         })
         .collect();
@@ -42,11 +44,13 @@ pub(super) fn populate_svc(ui: &SettingsWindow) {
         letter: "R".into(),
         id: "rdp".into(),
         name: "Remote Desktop".into(),
-        url: "".into(),
+        url: o.rdp_dir.as_str().into(),
         group: group_index(&o.rdp_group),
         enabled: o.rdp_enabled,
         flash: false,
         adapter: "rdp".into(),
+        file1: o.rdp_all_file.as_str().into(),
+        file2: o.rdp_one_file.as_str().into(),
     });
     ui.set_svc_rows(ModelRc::new(VecModel::from(rows)));
     populate_svc_opts(ui);
@@ -146,6 +150,17 @@ fn wire_svc_rows(ui: &SettingsWindow) {
         }
     });
     ui.on_svc_row_text(|i, key, text| {
+        if i as usize == load_services().len() {
+            let t = text.trim().to_string();
+            update_svc(|o| match key.as_str() {
+                "rdp_all" => o.rdp_all_file = t,
+                "rdp_one" => o.rdp_one_file = t,
+                _ => o.rdp_dir = t,
+            });
+            crate::refresh_all();
+            relayout();
+            return;
+        }
         edit_services(|l| {
             if let Some(c) = l.get_mut(i as usize) {
                 match key.as_str() {

@@ -402,8 +402,14 @@ const RDP: [(&str, &str, &str); 2] = [
 ];
 
 fn rdp_path(id: &str) -> Option<std::path::PathBuf> {
-    let file = RDP.iter().find(|r| r.0 == id)?.2;
-    let dir = load_svc().rdp_dir.clone();
+    let o = load_svc();
+    let (custom, default) = match id {
+        "rdp:all" => (&o.rdp_all_file, RDP[0].2),
+        "rdp:one" => (&o.rdp_one_file, RDP[1].2),
+        _ => return None,
+    };
+    let file = if custom.is_empty() { default } else { custom.as_str() };
+    let dir = o.rdp_dir.clone();
     let dir = if dir.is_empty() {
         std::path::PathBuf::from(std::env::var_os("USERPROFILE")?).join("Desktop").join("Bentley").join("Remote Desktop")
     } else {

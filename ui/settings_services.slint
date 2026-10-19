@@ -221,6 +221,35 @@ export component ServicesTab inherits Rectangle {
                     toggled => { root.row-bool(root.page, "flash", self.checked); }
                 }
 
+                if root.kind == "rdp": VerticalLayout {
+                    spacing: 14px;
+                    SectionTitle { text: "Remote Desktop"; }
+                    Caption { text: "Runs your connect scripts directly. The service only shows when at least one script exists."; }
+                    Opt {
+                        title: "Scripts folder";
+                        hint: "Empty = Desktop\\Bentley\\Remote Desktop.";
+                        LineEdit {
+                            text: root.rows[root.page].url;
+                            edited(t) => { root.row-text(root.page, "rdp_dir", t); }
+                        }
+                    }
+                    Opt {
+                        title: "All monitors script";
+                        hint: "Empty = Connect-WorkPC.ps1.";
+                        LineEdit {
+                            text: root.rows[root.page].file1;
+                            edited(t) => { root.row-text(root.page, "rdp_all", t); }
+                        }
+                    }
+                    Opt {
+                        title: "One monitor script";
+                        hint: "Empty = Connect-WorkPC-SingleMonitor.ps1.";
+                        LineEdit {
+                            text: root.rows[root.page].file2;
+                            edited(t) => { root.row-text(root.page, "rdp_one", t); }
+                        }
+                    }
+                }
                 if root.kind == "gmail": VerticalLayout {
                     spacing: 14px;
                     SectionTitle { text: "Gmail"; }

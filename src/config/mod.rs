@@ -183,6 +183,9 @@ pub(crate) struct SvcOpts {
     pub(crate) dev: bool,
     // Folder holding the Remote Desktop connect scripts; empty = Desktop\Bentley\Remote Desktop.
     pub(crate) rdp_dir: String,
+    // Connect script names for all monitors / one monitor; empty = the defaults.
+    pub(crate) rdp_all_file: String,
+    pub(crate) rdp_one_file: String,
     // Group the Remote Desktop launcher lives in, and whether it shows at all.
     pub(crate) rdp_group: String,
     pub(crate) rdp_enabled: bool,
@@ -220,6 +223,8 @@ impl Default for SvcOpts {
             low_memory: true,
             dev: false,
             rdp_dir: String::new(),
+            rdp_all_file: String::new(),
+            rdp_one_file: String::new(),
             rdp_group: "work".into(),
             rdp_enabled: true,
             bar_order: Vec::new(),
