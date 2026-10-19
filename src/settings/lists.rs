@@ -101,6 +101,7 @@ pub(super) fn populate_lists(ui: &SettingsWindow) {
         })
         .collect();
     ui.set_rules(ModelRc::new(VecModel::from(rules)));
+    populate_name_rules(ui);
     let monitors = monitor_pins();
     ui.set_mon_titles(strings(monitors.iter().map(|m| m.1.clone()).collect()));
     if ui.get_mon_sel() as usize >= monitors.len() {
@@ -135,7 +136,79 @@ pub(super) fn populate_lists(ui: &SettingsWindow) {
     ui.set_mixer_hidden(strings(load_ui().mixer_hidden.clone()));
 }
 
+const WHEN: [&str; 4] = ["contains", "starts", "ends", "equals"];
+const ACTION: [&str; 3] = ["remove", "replace", "set"];
+
+fn populate_name_rules(ui: &SettingsWindow) {
+    let rows: Vec<NameRule> = load_title_rules_raw()
+        .into_iter()
+        .map(|r| NameRule {
+            when: WHEN.iter().position(|w| *w == r.when).unwrap_or(0) as i32,
+            action: ACTION.iter().position(|a| *a == r.action).unwrap_or(0) as i32,
+            exe: r.exe.into(),
+            text: r.text.into(),
+            value: r.value.into(),
+        })
+        .collect();
+    ui.set_name_rules(ModelRc::new(VecModel::from(rows)));
+}
+
+fn edit_title_rules(f: impl FnOnce(&mut Vec<TitleRule>)) {
+    let mut rules = load_title_rules_raw();
+    f(&mut rules);
+    save_title_rules(rules);
+    changed();
+}
+
+fn wire_name_rules(ui: &SettingsWindow) {
+    ui.on_name_rule_text(|i, key, text| {
+        edit_title_rules(|l| {
+            if let Some(r) = l.get_mut(i as usize) {
+                match key.as_str() {
+                    "exe" => r.exe = text.trim().to_string(),
+                    "text" => r.text = text.to_string(),
+                    _ => r.value = text.to_string(),
+                }
+            }
+        });
+    });
+    let w = ui.as_weak();
+    ui.on_name_rule_pick(move |i, key, v| {
+        edit_title_rules(|l| {
+            if let Some(r) = l.get_mut(i as usize) {
+                if key == "when" {
+                    r.when = WHEN[(v as usize).min(3)].into();
+                } else {
+                    r.action = ACTION[(v as usize).min(2)].into();
+                }
+            }
+        });
+        if let Some(ui) = w.upgrade() {
+            populate_name_rules(&ui);
+        }
+    });
+    let w = ui.as_weak();
+    ui.on_name_rule_add(move || {
+        edit_title_rules(|l| l.push(TitleRule { when: "contains".into(), action: "remove".into(), ..Default::default() }));
+        if let Some(ui) = w.upgrade() {
+            populate_name_rules(&ui);
+        }
+    });
+    let w = ui.as_weak();
+    ui.on_name_rule_remove(move |i| {
+        edit_title_rules(|l| {
+            if (i as usize) < l.len() {
+                l.remove(i as usize);
+            }
+        });
+        if let Some(ui) = w.upgrade() {
+            populate_name_rules(&ui);
+        }
+    });
+}
+
 pub(super) fn wire_rules(ui: &SettingsWindow) {
+    wire_name_rules(ui);
     let w = ui.as_weak();
     ui.on_add_icon_only(move |exe| {
         let exe = exe.trim().to_lowercase();

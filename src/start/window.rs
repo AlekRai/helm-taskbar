@@ -63,7 +63,33 @@ pub(super) fn power(action: i32) {
     let _ = std::process::Command::new(exe).args(args).creation_flags(0x0800_0000).spawn();
 }
 
+// Folder of the app's file on disk, when it can be worked out (plain paths and known-folder based ids).
+fn locate_path(id: &str) -> Option<std::path::PathBuf> {
+    let path = if id.get(1..3) == Some(":\\") || id.starts_with("\\\\") {
+        std::path::PathBuf::from(id)
+    } else if let Some(rest) = id.strip_prefix('{') {
+        let (guid, tail) = rest.split_once('}')?;
+        let guid = windows::core::GUID::try_from(guid).ok()?;
+        let base = unsafe { SHGetKnownFolderPath(&guid, KF_FLAG_DEFAULT, None) }.ok()?;
+        std::path::PathBuf::from(take_string(base)).join(tail.trim_start_matches('\\'))
+    } else {
+        return None;
+    };
+    path.exists().then_some(path)
+}
+
+fn locate(id: &str) {
+    if let Some(p) = locate_path(id) {
+        let _ = std::process::Command::new("explorer.exe").arg(format!("/select,{}", p.display())).spawn();
+    }
+}
+
 pub(crate) fn wire(ui: &StartPopup) {
+    ui.on_can_locate(|id| locate_path(&id).is_some());
+    ui.on_locate(|id| {
+        locate(&id);
+        close_popups();
+    });
     let weak = ui.as_weak();
     ui.on_query_changed({
         let weak = weak.clone();
@@ -108,6 +134,7 @@ pub(crate) fn wire(ui: &StartPopup) {
 // Prepares the launcher for a fresh open: empty search, current pins.
 pub(crate) fn reset(ui: &StartPopup) {
     ensure_index();
+    ui.set_ctx_open(false);
     ui.set_query("".into());
     ui.set_sel(0);
     set_pinned(ui);

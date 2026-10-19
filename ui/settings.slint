@@ -2,9 +2,9 @@ import { ScrollView, Palette } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { Button, CheckBox, LineEdit, SpinBox, ResetBtn, SectionTitle, Caption, Segmented, Opt } from "settings_widgets.slint";
 import { LabelPreview, StartPreview, ClockPreview, TimePreview, RadiusPreview, SpeedPreview, ColorsPreview, IconGrid, ColorPicker } from "settings_previews.slint";
-import { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp, SvcRow, SvcOptsUi, RdpRow } from "settings_types.slint";
+import { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp, SvcRow, SvcOptsUi, RdpRow, NameRule } from "settings_types.slint";
 import { ServicesTab } from "settings_services.slint";
-export { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp, SvcRow, SvcOptsUi, RdpRow } from "settings_types.slint";
+export { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp, SvcRow, SvcOptsUi, RdpRow, NameRule } from "settings_types.slint";
 
 export component SettingsWindow inherits Window {
     title: "Helm Settings";
@@ -21,6 +21,11 @@ export component SettingsWindow inherits Window {
     in-out property <int> anim-ms;
     in property <[GridItem]> icon-only;
     in property <[RuleRow]> rules;
+    in property <[NameRule]> name-rules;
+    callback name-rule-text(int, string, string);
+    callback name-rule-pick(int, string, int);
+    callback name-rule-add();
+    callback name-rule-remove(int);
     in property <[MonRow]> monitors;
     in property <[string]> mon-titles;
     in-out property <int> mon-sel;
@@ -114,7 +119,8 @@ export component SettingsWindow inherits Window {
 
     init => { self.sync-palette(); }
 
-    property <int> tab: 0;
+    in-out property <int> tab: 0;
+    in-out property <int> svc-page: -1;
 
     VerticalLayout {
         spacing: 0px;
@@ -133,7 +139,7 @@ export component SettingsWindow inherits Window {
                         vertical-alignment: center;
                     }
                     Rectangle { y: parent.height - 3px; height: 3px; background: Theme.accent; visible: root.tab == i; }
-                    ta := TouchArea { clicked => { root.tab = i; } }
+                    ta := TouchArea { clicked => { root.tab = i; root.svc-page = -1; } }
                 }
             }
         }
@@ -350,6 +356,64 @@ export component SettingsWindow inherits Window {
                                 add-exe.text = "";
                             }
                         }
+                    }
+                    SectionTitle { text: "Rename rules"; }
+                    Caption {
+                        text: "Change the names shown on the bar. Rules run top to bottom, each on the result of the one before. Exe: leave empty or * for every app.";
+                    }
+                    for n[i] in root.name-rules: Rectangle {
+                        height: 96px;
+                        border-radius: 8px;
+                        background: Theme.hover;
+                        VerticalLayout {
+                            padding: 10px;
+                            spacing: 8px;
+                            HorizontalLayout {
+                                spacing: 8px;
+                                LineEdit {
+                                    width: 130px;
+                                    placeholder-text: "exe (or *)";
+                                    text: n.exe;
+                                    edited(t) => { root.name-rule-text(i, "exe", t); }
+                                }
+                                Text { color: Theme.text-dim; text: "name"; vertical-alignment: center; }
+                                Segmented {
+                                    min-width: 0px;
+                                    pad: 10px;
+                                    options: ["contains", "starts with", "ends with", "equals"];
+                                    current: n.when;
+                                    selected(g) => { root.name-rule-pick(i, "when", g); }
+                                }
+                                LineEdit {
+                                    horizontal-stretch: 1;
+                                    placeholder-text: "text";
+                                    text: n.text;
+                                    edited(t) => { root.name-rule-text(i, "text", t); }
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text { color: Theme.text-dim; text: "then"; vertical-alignment: center; }
+                                Segmented {
+                                    min-width: 0px;
+                                    pad: 10px;
+                                    options: ["remove that part", "replace that part with", "rename to"];
+                                    current: n.action;
+                                    selected(g) => { root.name-rule-pick(i, "action", g); }
+                                }
+                                LineEdit {
+                                    horizontal-stretch: 1;
+                                    placeholder-text: n.action > 0 ? "new text" : "(nothing)";
+                                    text: n.value;
+                                    edited(t) => { root.name-rule-text(i, "value", t); }
+                                }
+                                Button { text: "Remove"; clicked => { root.name-rule-remove(i); } }
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        Button { text: "Add rename rule"; clicked => { root.name-rule-add(); } }
+                        Rectangle { }
                     }
                     SectionTitle { text: "Icon overrides"; }
                     Caption {
@@ -706,6 +770,7 @@ export component SettingsWindow inherits Window {
         }
         if root.tab == 8: ServicesTab {
             vertical-stretch: 1;
+            page <=> root.svc-page;
             rows: root.svc-rows;
             rdp-rows: root.rdp-rows;
             rdp-edit(i, k, v) => { root.rdp-edit(i, k, v); }

@@ -222,6 +222,44 @@ pub(crate) fn group_right_clicked(monitor: isize, kind: usize) {
     crate::popup::open_menu(monitor, vec![Box::new(ClockProvider(kind))], AppInfo::default());
 }
 
+struct ServiceProvider(String);
+
+impl MenuProvider for ServiceProvider {
+    fn applies_to(&self, _: &AppInfo) -> bool {
+        true
+    }
+    fn items(&self, _: &AppInfo) -> Vec<MenuItem> {
+        let item = |id, label: &str| MenuItem { id, label: label.into(), enabled: true };
+        vec![item(1, "Open"), item(2, "Settings")]
+    }
+    fn run(&self, id: usize, _: &AppInfo) {
+        if id == 1 {
+            open(&self.0);
+        } else {
+            open_service_settings(&self.0);
+        }
+    }
+}
+
+// Right click on a service row: open, or jump to its settings page.
+pub(crate) fn service_right_clicked(monitor: isize, id: String) {
+    crate::popup::open_menu(monitor, vec![Box::new(ServiceProvider(id))], AppInfo::default());
+}
+
+// Opens Settings on the Services tab at the page of this service.
+pub(crate) fn open_service_settings(id: &str) {
+    let page = if id == "rdp" {
+        load_services().len()
+    } else {
+        load_services().iter().position(|s| s.id == id).unwrap_or(0)
+    };
+    crate::settings::open_settings();
+    crate::settings::with_window(|ui| {
+        ui.set_tab(8);
+        ui.set_svc_page(page as i32);
+    });
+}
+
 // The calendar event to show: the one in progress (`true`), else the next one today, with the seconds left.
 fn meeting_now() -> Option<(webservices::CalEvent, i64, bool)> {
     if !group_visible("work") {

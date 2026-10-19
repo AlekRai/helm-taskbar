@@ -20,11 +20,25 @@ component Shield inherits Path {
     fill: transparent;
 }
 
+component CtxRow inherits Rectangle {
+    in property <string> text;
+    callback clicked();
+    height: 32px;
+    Rectangle {
+        border-radius: Theme.button-radius;
+        background: ta.pressed ? Theme.popup-pressed : ta.has-hover ? Theme.popup-hover : transparent;
+        animate background { duration: Theme.anim; easing: ease-out; }
+        Text { x: 12px; width: parent.width - 24px; text: root.text; color: Theme.text; font-size: 13px; vertical-alignment: center; }
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
 component PinTile inherits Rectangle {
     in property <StartItem> item;
     callback launch();
     callback unpin();
     callback launch-admin();
+    callback context(length, length);
     width: 88px;
     height: 88px;
 
@@ -56,7 +70,14 @@ component PinTile inherits Rectangle {
         vertical-alignment: center;
         overflow: elide;
     }
-    ta := TouchArea { clicked => { root.launch(); } }
+    ta := TouchArea {
+        clicked => { root.launch(); }
+        pointer-event(e) => {
+            if (e.button == PointerEventButton.right && e.kind == PointerEventKind.up) {
+                root.context(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y);
+            }
+        }
+    }
     Rectangle {
         visible: ta.has-hover || x-ta.has-hover || adm-ta.has-hover;
         x: 4px;
@@ -87,6 +108,7 @@ component ResultRow inherits Rectangle {
     callback launch();
     callback toggle-pin();
     callback launch-admin();
+    callback context(length, length);
     height: 44px;
 
     Rectangle {
@@ -111,7 +133,14 @@ component ResultRow inherits Rectangle {
         vertical-alignment: center;
         overflow: elide;
     }
-    ta := TouchArea { clicked => { root.launch(); } }
+    ta := TouchArea {
+        clicked => { root.launch(); }
+        pointer-event(e) => {
+            if (e.button == PointerEventButton.right && e.kind == PointerEventKind.up) {
+                root.context(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y);
+            }
+        }
+    }
     Rectangle {
         visible: ta.has-hover || pin-ta.has-hover || adm-ta.has-hover || root.selected;
         x: parent.width - 104px;
@@ -176,7 +205,22 @@ export component StartPopup inherits Window {
     callback launch(string);
     callback launch-admin(string);
     callback toggle-pin(string);
+    callback locate(string);
+    callback can-locate(string) -> bool;
     callback power(int);
+    in-out property <bool> ctx-open: false;
+    property <StartItem> ctx-item;
+    property <bool> ctx-locatable: false;
+    property <length> ctx-x: 0px;
+    property <length> ctx-y: 0px;
+
+    function open-ctx(item: StartItem, x: length, y: length) {
+        root.ctx-item = item;
+        root.ctx-locatable = root.can-locate(item.id);
+        root.ctx-x = x;
+        root.ctx-y = y;
+        root.ctx-open = true;
+    }
 
     public function focus-search() {
         search.focus();
@@ -258,6 +302,7 @@ export component StartPopup inherits Window {
                         launch => { root.launch(item.id); }
                         unpin => { root.toggle-pin(item.id); }
                         launch-admin => { root.launch-admin(item.id); }
+                        context(x, y) => { root.open-ctx(item, x, y); }
                     }
                 }
             }
@@ -280,6 +325,7 @@ export component StartPopup inherits Window {
                         launch => { root.launch(item.id); }
                         toggle-pin => { root.toggle-pin(item.id); }
                         launch-admin => { root.launch-admin(item.id); }
+                        context(x, y) => { root.open-ctx(item, x, y); }
                     }
                 }
             }
@@ -298,6 +344,36 @@ export component StartPopup inherits Window {
             PowerButton { text: "Sleep"; clicked => { root.power(2); } }
             PowerButton { text: "Restart"; clicked => { root.power(3); } }
             PowerButton { text: "Shut down"; clicked => { root.power(4); } }
+        }
+    }
+
+    if root.ctx-open: Rectangle {
+        TouchArea {
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.down) { root.ctx-open = false; }
+            }
+        }
+        Rectangle {
+            property <length> h: 8px + (root.ctx-locatable ? 4 : 3) * 32px;
+            x: min(root.ctx-x, root.width - 216px);
+            y: min(root.ctx-y, root.height - self.h - 4px);
+            width: 208px;
+            height: self.h;
+            border-radius: 8px;
+            background: Theme.popup-surface;
+            border-width: 1px;
+            border-color: Theme.popup-border;
+            TouchArea { }
+            VerticalLayout {
+                padding: 4px;
+                CtxRow { text: "Open"; clicked => { root.ctx-open = false; root.launch(root.ctx-item.id); } }
+                CtxRow { text: "Run as administrator"; clicked => { root.ctx-open = false; root.launch-admin(root.ctx-item.id); } }
+                CtxRow {
+                    text: root.ctx-item.pinned ? "Unpin from Start" : "Pin to Start";
+                    clicked => { root.ctx-open = false; root.toggle-pin(root.ctx-item.id); }
+                }
+                if root.ctx-locatable: CtxRow { text: "Open file location"; clicked => { root.ctx-open = false; root.locate(root.ctx-item.id); } }
+            }
         }
     }
 

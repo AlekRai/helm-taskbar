@@ -135,6 +135,25 @@ pub(crate) fn update_monitor(device: &str, f: impl FnOnce(&mut MonitorCfg)) {
     });
 }
 
+pub(crate) fn load_title_rules() -> Vec<TitleRule> {
+    with_store(|st| {
+        st.cfg
+            .title_rules
+            .iter()
+            .map(|r| TitleRule { exe: r.exe.trim().to_lowercase(), text: r.text.clone(), ..r.clone() })
+            .collect()
+    })
+}
+
+// Rules exactly as written in the file.
+pub(crate) fn load_title_rules_raw() -> Vec<TitleRule> {
+    with_store(|st| st.cfg.title_rules.clone())
+}
+
+pub(crate) fn save_title_rules(rules: Vec<TitleRule>) {
+    mutate(|c| c.title_rules = rules);
+}
+
 // Rules exactly as written in the file (exe, title substring, icon path).
 pub(crate) fn load_icon_rules_raw() -> Vec<(String, String, String)> {
     with_store(|st| st.cfg.icon_rules.iter().map(|r| (r.exe.clone(), r.title.clone(), r.icon.clone())).collect())

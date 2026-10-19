@@ -24,6 +24,19 @@ struct IconRule {
     icon: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
+#[serde(default)]
+pub(crate) struct TitleRule {
+    // Exe name, or empty / "*" for every app.
+    pub(crate) exe: String,
+    // How `text` is matched against the title: contains, starts, ends, equals.
+    pub(crate) when: String,
+    pub(crate) text: String,
+    // What happens: remove (the matched text), replace (the matched text with `value`), set (the whole name to `value`).
+    pub(crate) action: String,
+    pub(crate) value: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub(crate) struct WinRec {
     pub(crate) exe: String,
@@ -310,6 +323,9 @@ struct Config {
     // Icon override: exe (or "*") + case-insensitive title substring -> .ico path (relative to the icons folder).
     #[serde(default)]
     icon_rules: Vec<IconRule>,
+    // Rename rules for the window titles shown on the bar, applied in order.
+    #[serde(default)]
+    title_rules: Vec<TitleRule>,
     // Built-in web services; unset means the defaults (see webservices::default_services).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     services: Option<Vec<webservices::ServiceCfg>>,
@@ -437,6 +453,7 @@ pub(crate) fn apply_to_state() {
         s.layout = layout;
         s.icon_only = icon_only;
         s.icon_rules = rules;
+        s.title_rules = load_title_rules();
         s.saved_windows = load_windows();
     });
 }

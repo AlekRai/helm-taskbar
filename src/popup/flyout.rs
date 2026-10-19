@@ -211,6 +211,19 @@ pub(crate) fn svc_row_middle(index: usize) {
     }
 }
 
+// Right click on a service row: its context menu.
+pub(crate) fn svc_row_right(index: usize) {
+    let kind = TRACK.with(|t| t.fly_kind.get());
+    if kind < 0 {
+        return;
+    }
+    let mon = TRACK.with(|t| t.fly_mon.get());
+    let scale = with_bar(mon, |b| b.scale).unwrap_or(1.0);
+    if let Some(id) = crate::services::members(kind as usize, scale).get(index).map(|r| r.1.clone()) {
+        crate::services::service_right_clicked(mon, id);
+    }
+}
+
 // Hovering a mail row stops it flashing.
 pub(crate) fn mail_row_hovered(index: usize, on: bool) {
     tooltip::mail_hovered(index, on);

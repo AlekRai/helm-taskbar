@@ -193,6 +193,61 @@ pub(crate) unsafe fn uwp_icon(hwnd: HWND) -> HICON {
     }
 }
 
+// Applies the title rename rules (config title_rules, in order) to a window title.
+pub(crate) fn rename_title(exe: &str, title: &str) -> String {
+    let name = file_name(exe);
+    STATE.with(|s| {
+        let s = s.borrow();
+        let mut cur = title.to_string();
+        for r in s.title_rules.iter().filter(|r| r.exe.is_empty() || r.exe == "*" || r.exe == name) {
+            cur = apply_title_rule(&cur, r);
+        }
+        cur
+    })
+}
+
+fn apply_title_rule(title: &str, r: &TitleRule) -> String {
+    let (lower, pat) = (title.to_lowercase(), r.text.to_lowercase());
+    if pat.is_empty() && r.when != "any" {
+        return title.to_string();
+    }
+    let hit = match r.when.as_str() {
+        "starts" => lower.starts_with(&pat),
+        "ends" => lower.ends_with(&pat),
+        "equals" => lower == pat,
+        "any" => true,
+        _ => lower.contains(&pat),
+    };
+    if !hit {
+        return title.to_string();
+    }
+    if r.action == "set" {
+        return r.value.clone();
+    }
+    // Byte offsets only line up when lowercasing kept the length.
+    if lower.len() != title.len() {
+        return title.to_string();
+    }
+    let with = if r.action == "replace" { r.value.as_str() } else { "" };
+    let out = match r.when.as_str() {
+        "starts" => format!("{with}{}", &title[pat.len()..]),
+        "ends" => format!("{}{with}", &title[..title.len() - pat.len()]),
+        "equals" | "any" => with.to_string(),
+        _ => {
+            let (mut out, mut at) = (String::new(), 0);
+            while let Some(i) = lower[at..].find(&pat) {
+                out.push_str(&title[at..at + i]);
+                out.push_str(with);
+                at += i + pat.len();
+            }
+            out.push_str(&title[at..]);
+            out
+        }
+    };
+    let out = out.trim_matches(|c: char| c.is_whitespace() || "-\u{2013}\u{2014}|:\u{b7}".contains(c)).to_string();
+    if out.is_empty() { title.to_string() } else { out }
+}
+
 // Icon from the first matching override rule (see config::load_icon_rules), if its file loads.
 pub(crate) unsafe fn override_icon(exe: &str, title: &str) -> Option<HICON> {
     unsafe {

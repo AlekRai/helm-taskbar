@@ -37,6 +37,7 @@ export component TrayFlyout inherits Window {
     callback svc-hovered(int, bool);
     callback mail-clicked(int);
     callback svc-middle(int);
+    callback svc-right(int);
     callback mail-middle(int);
     callback mail-read(int);
     callback mail-hovered(int, bool);
@@ -236,7 +237,8 @@ export component TrayFlyout inherits Window {
             clicked => { root.svc-clicked(i); }
             pointer-event(e) => {
                 if (e.kind == PointerEventKind.up && e.button == PointerEventButton.middle && self.has-hover) { root.svc-middle(i); }
-            }
+                                if (e.kind == PointerEventKind.up && e.button == PointerEventButton.right && self.has-hover) { root.svc-right(i); }
+                            }
         }
     }
 

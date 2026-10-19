@@ -47,6 +47,7 @@ pub(crate) struct State {
     pub(crate) layout: Vec<(String, String)>,
     pub(crate) icon_only: HashSet<String>,
     pub(crate) icon_rules: Vec<(String, String, String)>,
+    pub(crate) title_rules: Vec<TitleRule>,
     pub(crate) file_icons: HashMap<String, HICON>,
     // Session order of windows of the same app (hwnd -> rank); also persisted in config.toml.
     pub(crate) win_rank: HashMap<isize, usize>,

@@ -118,6 +118,7 @@ pub(crate) fn init_popups() {
     fly.on_svc_hovered(svc_row_hovered);
     fly.on_mail_clicked(|i| mail_row_clicked(i as usize));
     fly.on_svc_middle(|i| svc_row_middle(i as usize));
+    fly.on_svc_right(|i| svc_row_right(i as usize));
     fly.on_mail_middle(|i| mail_row_middle(i as usize));
     fly.on_mail_read(|i| mail_row_read(i as usize));
     fly.on_mail_hovered(|i, on| mail_row_hovered(i as usize, on));

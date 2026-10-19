@@ -74,7 +74,7 @@ unsafe fn window_entry(h: HWND, title: String) -> Entry {
         if let Some(i) = override_icon(&exe, &title) {
             icon = i;
         }
-        Entry { hwnd: h, title, exe, pid, icon, pinned: false }
+        Entry { hwnd: h, title: rename_title(&exe, &title), exe, pid, icon, pinned: false }
     }
 }
 
