@@ -662,6 +662,11 @@ fn attach(cfg: &ServiceCfg, hwnd: HWND, controller: ICoreWebView2Controller) {
         // The link-hover status bubble can get stuck on screen when a link opens in the browser.
         if let Ok(settings) = web.Settings() {
             let _ = settings.SetIsStatusBarEnabled(false);
+            // Offer to save passwords and fill them in later, as a normal browser does (kept in the service profile).
+            if let Ok(s4) = settings.cast::<ICoreWebView2Settings4>() {
+                let _ = s4.SetIsPasswordAutosaveEnabled(true);
+                let _ = s4.SetIsGeneralAutofillEnabled(true);
+            }
         }
 
         // Calls and screen sharing need mic, camera and screen permissions without prompts.
