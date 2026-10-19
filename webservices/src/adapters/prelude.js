@@ -24,7 +24,7 @@
     },
     // Reports whether the page shows a "sign in again" notice (session expired).
     watchSignin: function () {
-      var q = "//*[not(*) and (contains(text(),'You need to sign in') or contains(text(),'session has expired') or contains(text(),'Your session expired') or contains(text(),'Sign in to continue') or contains(text(),'sign in again'))]";
+      var q = "//text()[(contains(.,'You need to sign in') or contains(.,'session has expired') or contains(.,'Your session expired') or contains(.,'Sign in to continue') or contains(.,'sign in again'))]";
       var lastSign = null;
       setInterval(function () {
         var hit = false;
@@ -32,7 +32,8 @@
         if (window === window.top && /^login\.(microsoftonline|live)\.com$/.test(location.hostname)) hit = true;
         else try {
           var r = document.evaluate(q, document.body || document, null, 9, null).singleNodeValue;
-          hit = !!r && (!r.offsetParent && r.getClientRects().length === 0 ? false : true);
+          var el = r && r.parentElement;
+          hit = !!el && !!(el.offsetParent || el.getClientRects().length > 0);
         } catch (e) {}
         if (hit !== lastSign) { lastSign = hit; window.chrome.webview.postMessage('signin|' + (hit ? 1 : 0)); }
       }, 3000);

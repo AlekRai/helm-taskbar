@@ -347,11 +347,12 @@ unsafe fn fullscreen_on(bar: HWND) -> bool {
             if matches!(class.as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd") {
                 continue;
             }
-            if MonitorFromWindow(w, MONITOR_DEFAULTTONEAREST) != mon {
-                continue;
-            }
             let mut r = RECT::default();
             if GetWindowRect(w, &mut r).is_err() {
+                continue;
+            }
+            // A window spanning several monitors (e.g. Remote Desktop on all screens) counts for each one it overlaps.
+            if r.right <= m.left || r.left >= m.right || r.bottom <= m.top || r.top >= m.bottom {
                 continue;
             }
             let area = (r.right - r.left).max(0) as i64 * (r.bottom - r.top).max(0) as i64;
