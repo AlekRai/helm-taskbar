@@ -219,6 +219,15 @@ pub fn stop_group(group: &str) {
     }
 }
 
+// Moves a running service to another group right away.
+pub fn set_group(id: &str, group: &str) {
+    SVCS.with(|s| {
+        if let Some(v) = s.borrow_mut().iter_mut().find(|v| v.cfg.id == id) {
+            v.cfg.group = group.into();
+        }
+    });
+}
+
 // Closes one service's window and view; its profile stays loaded for the others that share it.
 pub fn stop_service(id: &str) {
     EVENTS.with(|e| e.borrow_mut().remove(id));

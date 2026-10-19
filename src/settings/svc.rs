@@ -134,11 +134,22 @@ fn wire_svc_rows(ui: &SettingsWindow) {
     });
     let w = ui.as_weak();
     ui.on_svc_row_group(move |i, g| {
+        let group = if g == 1 { "work" } else { "personal" };
+        let mut id = String::new();
         edit_services(|l| {
             if let Some(c) = l.get_mut(i as usize) {
-                c.group = if g == 1 { "work" } else { "personal" }.into();
+                c.group = group.into();
+                id = c.id.clone();
             }
         });
+        webservices::set_group(&id, group);
+        if crate::services::group_visible(group) {
+            crate::services::start_active();
+        } else {
+            webservices::stop_service(&id);
+        }
+        crate::refresh_all();
+        relayout();
         if let Some(ui) = w.upgrade() {
             populate_svc(&ui);
         }

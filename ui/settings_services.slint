@@ -193,7 +193,7 @@ export component ServicesTab inherits Rectangle {
                 }
                 Opt {
                     title: "Address";
-                    hint: "Name, address and group changes apply the next time the taskbar starts.";
+                    hint: "Name and address changes apply the next time the taskbar starts.";
                     LineEdit {
                         text: root.rows[root.page].url;
                         edited(t) => { root.row-text(root.page, "url", t); }
