@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::theme::parse_color;
-use crate::ui::{ColorRow, GridItem, MonRow, PresetItem, RuleRow, SettingsWindow, SvcOptsUi, SvcRow, TrayApp};
+use crate::ui::{ColorRow, GridItem, MonRow, PresetItem, RdpRow, RuleRow, SettingsWindow, SvcOptsUi, SvcRow, TrayApp};
 
 mod bar;
 mod colors;

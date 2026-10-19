@@ -133,6 +133,13 @@ impl UiCfg {
     }
 }
 
+// A Remote Desktop connect script listed in its group's flyout.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Default)]
+pub(crate) struct RdpScript {
+    pub(crate) name: String,
+    pub(crate) path: String,
+}
+
 // Options for the built-in web services (see the Services settings tab).
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
@@ -181,11 +188,8 @@ pub(crate) struct SvcOpts {
     pub(crate) low_memory: bool,
     // DevTools port and adapter logging; applies at next start.
     pub(crate) dev: bool,
-    // Folder holding the Remote Desktop connect scripts; empty = Desktop\Bentley\Remote Desktop.
-    pub(crate) rdp_dir: String,
-    // Connect script names for all monitors / one monitor; empty = the defaults.
-    pub(crate) rdp_all_file: String,
-    pub(crate) rdp_one_file: String,
+    // Remote Desktop connect scripts (.ps1 run with PowerShell, .rdp opened with mstsc); none = no Remote Desktop.
+    pub(crate) rdp_scripts: Vec<RdpScript>,
     // Group the Remote Desktop launcher lives in, and whether it shows at all.
     pub(crate) rdp_group: String,
     pub(crate) rdp_enabled: bool,
@@ -222,9 +226,7 @@ impl Default for SvcOpts {
             sched_end: 17,
             low_memory: true,
             dev: false,
-            rdp_dir: String::new(),
-            rdp_all_file: String::new(),
-            rdp_one_file: String::new(),
+            rdp_scripts: Vec::new(),
             rdp_group: "work".into(),
             rdp_enabled: true,
             bar_order: Vec::new(),

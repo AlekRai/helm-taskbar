@@ -1,7 +1,7 @@
 import { ScrollView } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { Button, CheckBox, LineEdit, SpinBox, SectionTitle, Caption, Segmented, Opt } from "settings_widgets.slint";
-import { SvcRow, SvcOptsUi } from "settings_types.slint";
+import { SvcRow, SvcOptsUi, RdpRow } from "settings_types.slint";
 
 // A number option: label + hint, with the spin box.
 component NumOpt inherits Opt {
@@ -55,6 +55,10 @@ component PageHead inherits Rectangle {
 
 export component ServicesTab inherits Rectangle {
     in property <[SvcRow]> rows;
+    in property <[RdpRow]> rdp-rows;
+    callback rdp-edit(int, string, string);
+    callback rdp-add();
+    callback rdp-remove(int);
     in-out property <SvcOptsUi> so;
     callback row-bool(int, string, bool);
     callback row-text(int, string, string);
@@ -224,30 +228,26 @@ export component ServicesTab inherits Rectangle {
                 if root.kind == "rdp": VerticalLayout {
                     spacing: 14px;
                     SectionTitle { text: "Remote Desktop"; }
-                    Caption { text: "Runs your connect scripts directly. The service only shows when at least one script exists."; }
-                    Opt {
-                        title: "Scripts folder";
-                        hint: "Empty = Desktop\\Bentley\\Remote Desktop.";
+                    Caption { text: "Each script becomes an entry in the flyout. A .ps1 runs with PowerShell, an .rdp file opens in Remote Desktop. Entries whose file is missing stay hidden."; }
+                    for s[i] in root.rdp-rows: HorizontalLayout {
+                        spacing: 8px;
                         LineEdit {
-                            text: root.rows[root.page].url;
-                            edited(t) => { root.row-text(root.page, "rdp_dir", t); }
+                            width: 160px;
+                            placeholder-text: "name";
+                            text: s.name;
+                            edited(t) => { root.rdp-edit(i, "name", t); }
                         }
+                        LineEdit {
+                            horizontal-stretch: 1;
+                            placeholder-text: "C:\\path\\to\\script.ps1";
+                            text: s.path;
+                            edited(t) => { root.rdp-edit(i, "path", t); }
+                        }
+                        Button { text: "Remove"; clicked => { root.rdp-remove(i); } }
                     }
-                    Opt {
-                        title: "All monitors script";
-                        hint: "Empty = Connect-WorkPC.ps1.";
-                        LineEdit {
-                            text: root.rows[root.page].file1;
-                            edited(t) => { root.row-text(root.page, "rdp_all", t); }
-                        }
-                    }
-                    Opt {
-                        title: "One monitor script";
-                        hint: "Empty = Connect-WorkPC-SingleMonitor.ps1.";
-                        LineEdit {
-                            text: root.rows[root.page].file2;
-                            edited(t) => { root.row-text(root.page, "rdp_one", t); }
-                        }
+                    HorizontalLayout {
+                        Button { text: "Add script"; clicked => { root.rdp-add(); } }
+                        Rectangle { }
                     }
                 }
                 if root.kind == "gmail": VerticalLayout {

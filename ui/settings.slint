@@ -2,9 +2,9 @@ import { ScrollView, Palette } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { Button, CheckBox, LineEdit, SpinBox, ResetBtn, SectionTitle, Caption, Segmented, Opt } from "settings_widgets.slint";
 import { LabelPreview, StartPreview, ClockPreview, TimePreview, RadiusPreview, SpeedPreview, ColorsPreview, IconGrid, ColorPicker } from "settings_previews.slint";
-import { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp, SvcRow, SvcOptsUi } from "settings_types.slint";
+import { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp, SvcRow, SvcOptsUi, RdpRow } from "settings_types.slint";
 import { ServicesTab } from "settings_services.slint";
-export { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp, SvcRow, SvcOptsUi } from "settings_types.slint";
+export { ColorRow, PresetItem, GridItem, RuleRow, MonRow, TrayApp, SvcRow, SvcOptsUi, RdpRow } from "settings_types.slint";
 
 export component SettingsWindow inherits Window {
     title: "Helm Settings";
@@ -52,6 +52,10 @@ export component SettingsWindow inherits Window {
     callback remove-pin(int, int);
     callback open-config();
     in property <[SvcRow]> svc-rows;
+    in property <[RdpRow]> rdp-rows;
+    callback rdp-edit(int, string, string);
+    callback rdp-add();
+    callback rdp-remove(int);
     in-out property <SvcOptsUi> svc-opts;
     callback svc-row-bool(int, string, bool);
     callback svc-row-text(int, string, string);
@@ -703,6 +707,10 @@ export component SettingsWindow inherits Window {
         if root.tab == 8: ServicesTab {
             vertical-stretch: 1;
             rows: root.svc-rows;
+            rdp-rows: root.rdp-rows;
+            rdp-edit(i, k, v) => { root.rdp-edit(i, k, v); }
+            rdp-add() => { root.rdp-add(); }
+            rdp-remove(i) => { root.rdp-remove(i); }
             so <=> root.svc-opts;
             row-bool(i, k, v) => { root.svc-row-bool(i, k, v); }
             row-text(i, k, v) => { root.svc-row-text(i, k, v); }

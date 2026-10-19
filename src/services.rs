@@ -392,30 +392,14 @@ pub(crate) fn members(kind: usize, scale: f32) -> Vec<(SvcItem, String)> {
 // Whether the Remote Desktop launcher is enabled, present and assigned to this group.
 pub(crate) fn rdp_in(key: &str) -> bool {
     let o = load_svc();
-    o.rdp_enabled && o.rdp_group == key && RDP.iter().any(|r| rdp_path(r.0).is_some())
+    o.rdp_enabled && o.rdp_group == key && (0..o.rdp_scripts.len()).any(|i| rdp_path(&format!("rdp:{i}")).is_some())
 }
 
-// Remote Desktop launchers: connect scripts run directly, listed under the Work group when present.
-const RDP: [(&str, &str, &str); 2] = [
-    ("rdp:all", "All monitors", "Connect-WorkPC.ps1"),
-    ("rdp:one", "One monitor", "Connect-WorkPC-SingleMonitor.ps1"),
-];
-
+// Script behind an "rdp:N" id, when its file exists.
 fn rdp_path(id: &str) -> Option<std::path::PathBuf> {
+    let i: usize = id.strip_prefix("rdp:")?.parse().ok()?;
     let o = load_svc();
-    let (custom, default) = match id {
-        "rdp:all" => (&o.rdp_all_file, RDP[0].2),
-        "rdp:one" => (&o.rdp_one_file, RDP[1].2),
-        _ => return None,
-    };
-    let file = if custom.is_empty() { default } else { custom.as_str() };
-    let dir = o.rdp_dir.clone();
-    let dir = if dir.is_empty() {
-        std::path::PathBuf::from(std::env::var_os("USERPROFILE")?).join("Desktop").join("Bentley").join("Remote Desktop")
-    } else {
-        std::path::PathBuf::from(dir)
-    };
-    let path = dir.join(file);
+    let path = std::path::PathBuf::from(&o.rdp_scripts.get(i)?.path);
     path.exists().then_some(path)
 }
 
@@ -435,14 +419,18 @@ fn rdp_item(name: &str, kind: usize, scale: f32) -> SvcItem {
 
 // A single "RDP" row; its options open in the side list like a service's unread mails.
 fn rdp_rows(kind: usize, scale: f32) -> Vec<(SvcItem, String)> {
-    if RDP.iter().all(|r| rdp_path(r.0).is_none()) {
+    if rdp_options(scale).is_empty() {
         return Vec::new();
     }
     vec![(rdp_item("Remote Desktop", kind, scale), "rdp".to_string())]
 }
 
 fn rdp_options(scale: f32) -> Vec<(SvcItem, Option<String>)> {
-    RDP.iter().filter(|r| rdp_path(r.0).is_some()).map(|r| (rdp_item(r.1, usize::MAX, scale), Some(r.0.to_string()))).collect()
+    let o = load_svc();
+    (0..o.rdp_scripts.len())
+        .filter(|i| rdp_path(&format!("rdp:{i}")).is_some())
+        .map(|i| (rdp_item(&o.rdp_scripts[i].name, usize::MAX, scale), Some(format!("rdp:{i}"))))
+        .collect()
 }
 
 // Fills a bar's group model (empty when this bar doesn't show them) and returns the width it takes.
@@ -551,11 +539,17 @@ pub(crate) fn open(id: &str) {
     if id.starts_with("rdp:") {
         if let Some(path) = rdp_path(id) {
             use std::os::windows::process::CommandExt;
-            let _ = std::process::Command::new("powershell")
-                .args(["-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File"])
-                .arg(path)
-                .creation_flags(0x0800_0000)
-                .spawn();
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            let mut cmd = if ext == "rdp" {
+                let mut c = std::process::Command::new("mstsc");
+                c.arg(&path);
+                c
+            } else {
+                let mut c = std::process::Command::new("powershell");
+                c.args(["-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File"]).arg(&path);
+                c
+            };
+            let _ = cmd.creation_flags(0x0800_0000).spawn();
         }
         return;
     }

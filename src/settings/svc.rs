@@ -30,8 +30,6 @@ pub(super) fn populate_svc(ui: &SettingsWindow) {
             enabled: c.enabled,
             flash: c.flash,
                 adapter: c.adapter.into(),
-                file1: "".into(),
-                file2: "".into(),
             }
         })
         .collect();
@@ -44,15 +42,16 @@ pub(super) fn populate_svc(ui: &SettingsWindow) {
         letter: "R".into(),
         id: "rdp".into(),
         name: "Remote Desktop".into(),
-        url: o.rdp_dir.as_str().into(),
+        url: "".into(),
         group: group_index(&o.rdp_group),
         enabled: o.rdp_enabled,
         flash: false,
         adapter: "rdp".into(),
-        file1: o.rdp_all_file.as_str().into(),
-        file2: o.rdp_one_file.as_str().into(),
     });
     ui.set_svc_rows(ModelRc::new(VecModel::from(rows)));
+    ui.set_rdp_rows(ModelRc::new(VecModel::from(
+        o.rdp_scripts.iter().map(|s| RdpRow { name: s.name.as_str().into(), path: s.path.as_str().into() }).collect::<Vec<_>>(),
+    )));
     populate_svc_opts(ui);
 }
 
@@ -117,6 +116,44 @@ fn slug(name: &str, taken: &[String]) -> String {
 pub(super) fn wire_svc(ui: &SettingsWindow) {
     wire_svc_rows(ui);
     wire_svc_opts(ui);
+    wire_rdp(ui);
+}
+
+fn wire_rdp(ui: &SettingsWindow) {
+    ui.on_rdp_edit(|i, key, text| {
+        let t = text.trim().to_string();
+        update_svc(|o| {
+            if let Some(s) = o.rdp_scripts.get_mut(i as usize) {
+                if key == "name" {
+                    s.name = t;
+                } else {
+                    s.path = t;
+                }
+            }
+        });
+        crate::refresh_all();
+        relayout();
+    });
+    let w = ui.as_weak();
+    ui.on_rdp_add(move || {
+        update_svc(|o| o.rdp_scripts.push(Default::default()));
+        if let Some(ui) = w.upgrade() {
+            populate_svc(&ui);
+        }
+    });
+    let w = ui.as_weak();
+    ui.on_rdp_remove(move |i| {
+        update_svc(|o| {
+            if (i as usize) < o.rdp_scripts.len() {
+                o.rdp_scripts.remove(i as usize);
+            }
+        });
+        crate::refresh_all();
+        relayout();
+        if let Some(ui) = w.upgrade() {
+            populate_svc(&ui);
+        }
+    });
 }
 
 fn wire_svc_rows(ui: &SettingsWindow) {
@@ -150,17 +187,6 @@ fn wire_svc_rows(ui: &SettingsWindow) {
         }
     });
     ui.on_svc_row_text(|i, key, text| {
-        if i as usize == load_services().len() {
-            let t = text.trim().to_string();
-            update_svc(|o| match key.as_str() {
-                "rdp_all" => o.rdp_all_file = t,
-                "rdp_one" => o.rdp_one_file = t,
-                _ => o.rdp_dir = t,
-            });
-            crate::refresh_all();
-            relayout();
-            return;
-        }
         edit_services(|l| {
             if let Some(c) = l.get_mut(i as usize) {
                 match key.as_str() {
