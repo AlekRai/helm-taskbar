@@ -33,6 +33,21 @@ pub(super) fn populate_svc(ui: &SettingsWindow) {
             }
         })
         .collect();
+    let mut rows = rows;
+    let o = load_svc();
+    let icon = unsafe { exe_icon(r"C:\Windows\System32\mstsc.exe") };
+    rows.push(SvcRow {
+        icon: if icon.0.is_null() { Default::default() } else { cached_icon_image(icon, 1.0) },
+        has_icon: !icon.0.is_null(),
+        letter: "R".into(),
+        id: "rdp".into(),
+        name: "Remote Desktop".into(),
+        url: "".into(),
+        group: group_index(&o.rdp_group),
+        enabled: o.rdp_enabled,
+        flash: false,
+        adapter: "rdp".into(),
+    });
     ui.set_svc_rows(ModelRc::new(VecModel::from(rows)));
     populate_svc_opts(ui);
 }
@@ -102,6 +117,14 @@ pub(super) fn wire_svc(ui: &SettingsWindow) {
 
 fn wire_svc_rows(ui: &SettingsWindow) {
     ui.on_svc_row_bool(|i, key, on| {
+        if i as usize == load_services().len() {
+            if key == "enabled" {
+                update_svc(|o| o.rdp_enabled = on);
+                crate::refresh_all();
+                relayout();
+            }
+            return;
+        }
         let mut id = String::new();
         edit_services(|l| {
             if let Some(c) = l.get_mut(i as usize) {
@@ -135,6 +158,15 @@ fn wire_svc_rows(ui: &SettingsWindow) {
     let w = ui.as_weak();
     ui.on_svc_row_group(move |i, g| {
         let group = if g == 1 { "work" } else { "personal" };
+        if i as usize == load_services().len() {
+            update_svc(|o| o.rdp_group = group.into());
+            crate::refresh_all();
+            relayout();
+            if let Some(ui) = w.upgrade() {
+                populate_svc(&ui);
+            }
+            return;
+        }
         let mut id = String::new();
         edit_services(|l| {
             if let Some(c) = l.get_mut(i as usize) {

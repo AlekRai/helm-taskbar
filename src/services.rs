@@ -373,7 +373,7 @@ pub(crate) fn groups() -> Vec<SvcItem> {
                 return None;
             }
             let rows = group_rows(&all, key);
-            (!rows.is_empty()).then(|| item(name, k, &rows))
+            (!rows.is_empty() || rdp_in(key)).then(|| item(name, k, &rows))
         })
         .collect()
 }
@@ -383,10 +383,16 @@ pub(crate) fn members(kind: usize, scale: f32) -> Vec<(SvcItem, String)> {
     let all = webservices::status();
     let Some((key, _)) = GROUPS.get(kind) else { return Vec::new() };
     let mut rows: Vec<_> = group_rows(&all, key).into_iter().map(|s| (row_item(kind, s, scale), s.id.clone())).collect();
-    if *key == "work" && !rows.is_empty() {
+    if rdp_in(key) {
         rows.extend(rdp_rows(kind, scale));
     }
     rows
+}
+
+// Whether the Remote Desktop launcher is enabled, present and assigned to this group.
+pub(crate) fn rdp_in(key: &str) -> bool {
+    let o = load_svc();
+    o.rdp_enabled && o.rdp_group == key && RDP.iter().any(|r| rdp_path(r.0).is_some())
 }
 
 // Remote Desktop launchers: connect scripts run directly, listed under the Work group when present.
