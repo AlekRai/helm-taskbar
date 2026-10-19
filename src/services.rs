@@ -703,7 +703,7 @@ pub(crate) fn mail_tip(id: &str, index: usize) -> String {
 fn describe(s: &webservices::Status) -> String {
     let meeting = if s.meeting { " (in a meeting)" } else { "" };
     if s.signin {
-        return format!("{}: sign in again (click the red !)", s.name);
+        return format!("{}: sign in again", s.name);
     }
     match s.unread {
         0 => format!("{}: no unread{meeting}", s.name),
